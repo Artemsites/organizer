@@ -14,7 +14,6 @@ export class PluginLoader {
     return {
       logger: (msg: string) => console.log(`[Plugin] ${msg}`),
       exec: async (command: string, args: string[] = []) => {
-        const fullCmd = [command, ...args].join(' ');
         try {
           const result = await $`${command} ${args}`;
           return {
@@ -68,7 +67,7 @@ export class PluginLoader {
   }
 
   getLoadedPlugins(): ClientPluginEntry[] {
-    return Array.from(this.loadedPlugins.values());
+    return [...this.loadedPlugins.values()];
   }
 
   async executeCommand(pluginId: string, command: string, args: string[] = []): Promise<void> {

@@ -61,15 +61,10 @@ export class Database {
   // --- Tasks ---
 
   getTasks(status?: string): Task[] {
-    let rows: DbTaskRow[];
-    if (status) {
-      const stmt = this.db.prepare('SELECT * FROM tasks WHERE status = ? ORDER BY created_at DESC');
-      rows = stmt.all(status) as unknown as DbTaskRow[];
-    } else {
-      const stmt = this.db.prepare('SELECT * FROM tasks ORDER BY created_at DESC');
-      rows = stmt.all() as unknown as DbTaskRow[];
-    }
-
+    const stmt = this.db.prepare(
+      `SELECT * FROM tasks ${status ? 'WHERE status = ?' : ''} ORDER BY created_at DESC`
+    );
+    const rows = (status ? stmt.all(status) : stmt.all()) as unknown as DbTaskRow[];
     return rows.map(this.mapTaskRow);
   }
 
