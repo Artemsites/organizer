@@ -11,7 +11,16 @@ organizer/
 ├── spec.md       # Спецификация
 ├── plan.md       # План разработки
 └── memory.md     # Архитектурная память
-```
+# Органайзер - Спецификация системы:
+**Пет-проект для обучения лучшим практикам frontend & backend & cli разработки.**
+
+## Главные принципы, по приоритетам:
+0. **Security приложения**: 
+данные пользователя и его пк должны быть под 100% защитой! Ни доли процента не должно быть вреда данных пользователя (потери/повреждения/кражи) или вреда для пк пользователя! 
+1. **Быстрота выполнения производительности** сервиса во всех частях и в целом!
+2. **Простота и минимализм** - проект должен быть максимально простой и минималистичный.
+   2.1. Если можно **эффективно и минимально сделать из нативных инструментов**, то делаем нативными!
+   2.2. Если **эффективнее и минимальнее будет сделать какую-то часть с помощью opensource библиотеки** или framework то делаем!
 
 ## Шаги реализации
 
@@ -51,20 +60,39 @@ organizer/
   - API для плагинов: вызов bash (через `zx`), управление puppeteer.
   - TDD: unit (загрузчик, runner).
 
-- [ ] Шаг 7: Базовые плагины MVP (`calendar`, `timer`, `backlog`, `updater`, `browser-automation`, `moon-phase`) `[Model: Mid, Effort: High]`
-  - `calendar`: server-api -> client-view.
-  - `timer`: server-schedule -> client-notify / client-script.
-  - `backlog`: server-db -> link to `calendar`.
-  - `browser-automation`: server-trigger -> client-puppeteer.
-  - `moon-phase`: server-cron (suncalc) -> client-notify.
-  - `updater`: client-cron -> client-bash (brew/npm/etc).
-  - TDD: unit тесты каждого плагина.
+- [ ] Шаг 7 (Приоритет 0): `todos` — Список задач (Web UI + Server API) `[Model: Mid, Effort: Medium]`
+  - Расширение статусов `TaskStatus`: `'backlog' | 'todo' | 'in_progress' | 'review' | 'done' | 'archived'`.
+  - Подключение `web/src/modules/todos/` к REST API сервера (`/api/v1/tasks`) вместо localStorage.
+  - Оптимистичный UI, фильтрация по статусам (`todo`, `in_progress`, `review`, `done`), приоритеты (low / medium / high).
+  - Практика: нативный DOM API, делегирование событий, SCSS-стили, анимация смены статуса.
+  - TDD: интеграционные проверки связки.
 
-- [ ] Шаг 8: Подключение Web UI (`web/`) к REST API Ядра (`server/`) `[Model: Mid, Effort: Medium]`
-  - API-клиент в `web/` для запросов к Fastify.
-  - Связка визуальных списков задач, календаря и бэклога с БД сервера.
+- [ ] Шаг 8 (Приоритет 1): `reminders` — Напоминальщик событий (Ядро + Web + CLI) `[Model: Mid, Effort: High]`
+  - Название: **`reminders`** (Напоминания / Напоминальщик).
+  - Сервер: маршруты `/api/v1/events` и `/api/v1/reminders`, фоновый таймер/крон на `croner`.
+  - Web: модуль `RemindersModule` с отображением дедлайнов, таймерами обратного отсчета и Web Notifications API.
+  - CLI воркер: системные уведомления macOS (`osascript` notification).
+  - TDD: unit тесты триггеров напоминаний.
 
-- [ ] Шаг 9: Подготовка деплоя на Beget (Passenger, cron fallback, production build) `[Model: Pro, Effort: High]`
-  - Проверка Passenger для долгоживущего процесса.
-  - Beget cron fallback (`curl /health`).
-  - E2E: Client sync -> trigger server cron -> client execution.
+- [ ] Шаг 9 (Приоритет 2): `backlog` — Бэклог задач, не назначенных на напоминальщик `[Model: Mid, Effort: Medium]`
+  - Представление задач с фильтром по статусу `status = 'backlog'`.
+  - Быстрый перевод из бэклога в работу (смена статуса на `todo` с датой) или в напоминание.
+  - Web: модуль `BacklogModule` (фильтрация по тегам, поиск, группировка).
+  - TDD: unit тесты API и фильтрации бэклога.
+
+- [ ] Шаг 10 (Приоритет 3): `kanban` — Задачник в виде столбцов (Trello-доска задач со столбцом Backlog) `[Model: Mid, Effort: High]`
+  - 5 столбцов доски: `Backlog`, `To Do`, `In Progress`, `Review`, `Done`.
+  - Вёрстка: адаптивный CSS Grid + Flexbox, адаптив под разные экраны.
+  - Практика: нативный **HTML5 Drag and Drop API** (`dragstart`, `dragover`, `drop`, визуальный placeholder) без внешних библиотек.
+  - Перетаскивание карточки меняет статус задачи через `PATCH /api/v1/tasks/:id { status }`.
+
+- [ ] Шаг 11 (Приоритет 4): `calendar` — Графическое отображение напоминальщика событий в календаре `[Model: Mid, Effort: High]`
+  - Сетка месяца и недели на **CSS Grid** (`repeat(7, 1fr)`).
+  - Адаптив под 4-5 брейкпоинтов (десктоп, планшет, мобильный).
+  - Отображение событий из `reminders` и задач с `dueDate` из `todos`.
+  - Микро-анимации смены месяца через CSS `transform` и `opacity`.
+
+- [ ] Шаг 12: Production сборка и деплой на Beget (Passenger, cron fallback) `[Model: Pro, Effort: High]`
+  - Конфигурация Passenger для долгоживущего Node.js процесса.
+  - Fallback cron через HTTP healthcheck.
+  - E2E проверка полного цикла: Web -> Server -> CLI worker.
