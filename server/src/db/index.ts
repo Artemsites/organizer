@@ -80,7 +80,7 @@ export class Database {
       id: randomUUID(),
       title: dto.title,
       description: dto.description,
-      status: 'todo',
+      status: (dto as { status?: Task['status'] }).status || 'todo',
       priority: dto.priority || 'medium',
       dueDate: dto.dueDate,
       tags: dto.tags || [],

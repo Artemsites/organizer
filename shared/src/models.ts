@@ -1,6 +1,8 @@
-// Общие модели данных (сущности ядра, БД и клиентов)
-
-export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'archived';
+/**
+ * TaskStatus — жизненный цикл задачи согласно spec.md §2:
+ * backlog -> todo -> in_progress -> review -> done -> archived
+ */
+export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface Task {

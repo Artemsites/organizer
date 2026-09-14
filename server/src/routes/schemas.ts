@@ -1,0 +1,74 @@
+import { z } from 'zod';
+
+/**
+ * ENGLISH PROGRAMMER CONCEPTS:
+ * - DTO (Data Transfer Object) — объект для передачи данных между подсистемами (клиент <-> сервер).
+ * - Boundary Validation — валидация на границе системы (API). Любые входящие данные от клиента
+ *   считаются недоверенными (Untrusted Input) и должны быть проверены ДО попадания в бизнес-слой и БД.
+ * - Sanitization — очистка данных (например, обрезка пробелов `.trim()`).
+ * - Over-posting / Mass Assignment — уязвимость, когда злоумышленник передает в JSON лишние поля
+ *   (например, id, createdAt, role), пытаясь перетереть системные атрибуты.
+ * - Fail-Fast — принцип немедленного прерывания обработки при обнаружении первой ошибки валидации.
+ */
+
+// Допустимые статусы задач (Task Statuses) согласно spec.md
+export const taskStatuses = [
+  'backlog',
+  'todo',
+  'in_progress',
+  'review',
+  'done',
+  'archived',
+] as const;
+
+// Допустимые приоритеты (Task Priorities)
+export const taskPriorities = ['low', 'medium', 'high'] as const;
+
+/**
+ * Best Practice: Zod Schema для создания задачи (CreateTaskSchema).
+ * 
+ * 1. Sanitization: `.trim()` удаляет начальные и конечные пробелы.
+ * 2. Strict String Check: `.min(1)` гарантирует, что строка пробелов ('   ') не пройдет как валидное название.
+ * 3. Type Coercion vs Strict: `z.number().int().positive()` строго отвергает строки вроде "вчера"
+ *    и дробные/отрицательные таймстемпы.
+ * 4. Stripping (защита от Over-posting): Zod по умолчанию работает в режиме `strip()`,
+ *    автоматически удаляя все неизвестные поля, не описанные в схеме.
+ */
+export const createTaskSchema = z.object({
+  title: z
+    .string({ required_error: 'Title is required' })
+    .trim()
+    .min(1, 'Title cannot be empty'),
+  description: z.string().optional(),
+  status: z.enum(taskStatuses).optional(),
+  priority: z.enum(taskPriorities).optional(),
+  dueDate: z
+    .number({ invalid_type_error: 'dueDate must be a positive integer timestamp' })
+    .int('dueDate must be an integer')
+    .positive('dueDate must be a positive timestamp')
+    .optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+/**
+ * Best Practice: Zod Schema для частичного обновления (UpdateTaskSchema).
+ * 
+ * В REST API:
+ * - PUT: полная замена ресурса (все обязательные поля должны присутствовать).
+ * - PATCH: частичное изменение ресурса (Partial Update).
+ * 
+ * Мы берем `createTaskSchema.partial()`, делая каждое поле опциональным.
+ * 
+ * Подводный камень: если клиент отправит пустой объект `{}` или объект только с неизвестными полями,
+ * после strip получится `{}`. Без `.refine()` такой запрос выполнил бы бессмысленную перезапись
+ * (No-op = No Operation) с обновлением `updatedAt`.
+ * С помощью `.refine()` мы явно требуем передать хотя бы одно валидное поле для обновления.
+ */
+export const updateTaskSchema = createTaskSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'Update payload must contain at least one valid field to update',
+  });
+
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
