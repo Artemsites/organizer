@@ -1,5 +1,6 @@
-agy: organizer
-cla: organizer
+agy(pro): organizer
+cla(pro): organizer
+agy(mid): 2:organizer
 
 ---
 
