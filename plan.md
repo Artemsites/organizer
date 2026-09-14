@@ -121,7 +121,7 @@ organizer/
   - Существующие 14 тестов сервера должны остаться зелёными.
   - **Сделано:** `server/src/auth.ts` — `requireToken` (чистая функция, fail-fast), `verifyToken` на `crypto.timingSafeEqual` с обязательной проверкой длины, фабрика `createAuthHook`; `server/src/index.ts` — `host` из env с дефолтом `127.0.0.1`, `requireToken` при старте. `server/test/auth.test.ts` — все 6 кейсов приёмки. Прогон тестов за мной не числится: закрывал другой агент.
 
-- [ ] Шаг 7.0.2: Валидация входа на записи `[Model: Mid, Effort: Low]`
+- [x] Шаг 7.0.2: Валидация входа на записи `[Model: Mid, Effort: Low]` — **сделано 2026-09-15**
   - **Проблема.** `server/src/routes/tasks.ts` проверяет только наличие `title`. `POST`/`PATCH` запишут в SQLite что угодно: `{ status: 'lol', priority: 'xxx', dueDate: 'вчера' }` сохранится и потом сломает UI. Целостность данных = принцип 0.
   - `zod` уже в `server/package.json`, новых пакетов не ставить. Новый файл `server/src/routes/schemas.ts`: `createTaskSchema` и `updateTaskSchema` (`z.enum` для `status`/`priority`, `z.number().int().positive().optional()` для `dueDate`, `z.array(z.string())` для `tags`). `updateTaskSchema` — `.partial()` + отказ на пустом объекте.
   - В хендлерах: `const parsed = schema.safeParse(request.body)`; при `!parsed.success` — `reply.status(400)` и `{ success: false, error: parsed.error.issues[0].message, timestamp: Date.now() }` (формат ответа не менять, он уже единый по всем маршрутам). Дальше в `db.*` передавать `parsed.data`, не сырое `request.body`.
@@ -134,6 +134,7 @@ organizer/
     6. «PATCH `{ status: 'review' }` → 200» (новый статус из Шага 7a принимается);
     7. «PATCH `{}` → 400» (пустое обновление — ошибка, а не тихий no-op);
     8. «лишнее поле в теле отбрасывается и в БД не попадает».
+  - **Сделано:** Создан `server/src/routes/schemas.ts` с Zod-схемами (`createTaskSchema`, `updateTaskSchema`), в `tasks.ts` подключен safeParse с возвратом 400 и передачей очищенных данных в БД, в `shared/src/models.ts` расширен `TaskStatus` (`backlog`, `review`), `tasks-validation.test.ts` — 8/8 тестов зелёные.
 
 - [ ] Шаг 7.0.3: Защита API от автоматического перебора и залива `[Model: Pro, Effort: Medium]`
   - Новый пункт принципа 0 `spec.md`: «сразу предусматриваем все дыры, которые могут быть открыты автоматическими агентами и скриптами». Ниже — то, что скрипт ломает в текущем ядре прямо сейчас.
