@@ -7,7 +7,7 @@ import { createApiProxy } from '../vite.proxy';
 function runProxyReq(env: Record<string, string | undefined>) {
   const options = createApiProxy(env)['/api'];
   const proxy = new EventEmitter();
-  (options.configure as (p: EventEmitter, o: unknown) => void)(proxy, options);
+  (options.configure as (p: EventEmitter) => void)(proxy);
 
   const setHeader = vi.fn();
   proxy.emit('proxyReq', { setHeader });

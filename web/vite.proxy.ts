@@ -1,18 +1,11 @@
 import type { ProxyOptions } from 'vite';
 
 /**
- * Прокси /api -> ядро.
- *
- * Зачем прокси, а не CORS: web и сервер живут на разных портах, а X-Client-Token —
- * общий секрет. Попади он в бандл, его увидит любой, кто открыл страницу (принцип 0
- * spec.md). Поэтому токен подставляет сам прокси — он выполняется в Node-процессе
- * Vite, а до браузера доходит уже проксированный ответ.
- *
- * Никогда не читать токен через import.meta.env / VITE_*: эти переменные Vite
- * встраивает в клиентский код.
+ * Прокси /api -> ядро. Токен подставляет прокси в Node-процессе Vite, а не бандл.
+ * Никогда не читать токен через import.meta.env / VITE_*: Vite встраивает их в клиентский код.
  */
 export function createApiProxy(env: Record<string, string | undefined>): Record<string, ProxyOptions> {
-  const token = env.ORGANIZER_TOKEN ?? '';
+  const token = env.ORGANIZER_TOKEN;
 
   return {
     '/api': {
