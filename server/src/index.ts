@@ -14,6 +14,10 @@ export interface ServerOptions {
   dbLocation?: string;
   startScheduler?: boolean;
   token?: string;
+  maxTasks?: number;
+  maxAuthFailures?: number;
+  failureWindowMs?: number;
+  logger?: boolean | object;
 }
 
 /**
@@ -23,6 +27,10 @@ export interface ServerOptions {
  * 1. Инъекция зависимостей: в тестах можно передать `dbLocation: ':memory:'` и изолированный `token`.
  * 2. Тесты через fastify.inject выполняются без открытия сетевых сокетов (zero-port listening),
  *    что ускоряет запуск сотен тестов в параллели и исключает конфликты занятых портов (EADDRINUSE).
+ * 3. Hardening:
+ *    - Защита от перебора токена (Anti-Brute-Force Rate Limiting в createAuthHook).
+ *    - Защита диска от замусоривания бесконечными задачами (maxTasks hard cap в taskRoutes).
+ *    - Защита от утечки секретов в логи (CWE-532 Log Redaction через Fastify/Pino redact).
  */
 export async function createServer(options: ServerOptions = {}) {
   const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
@@ -31,7 +39,32 @@ export async function createServer(options: ServerOptions = {}) {
     throw new Error('ORGANIZER_TOKEN is required to start server');
   }
 
-  const app = Fastify({ logger: false });
+  // Конфигурация логгера с автоматическим скрытием заголовка x-client-token (CWE-532)
+  // По умолчанию Fastify не логирует headers. Чтобы заголовки попадали в лог
+  // и маскировались Pino redact, явно сериализуем req.headers.
+  let loggerConfig: boolean | object = false;
+  if (options.logger) {
+    const customOptions = typeof options.logger === 'object' ? options.logger : {};
+    loggerConfig = {
+      level: 'info',
+      ...customOptions,
+      serializers: {
+        req(req: any) {
+          return {
+            method: req.method,
+            url: req.url,
+            headers: req.headers,
+            hostname: req.hostname,
+            remoteAddress: req.ip,
+          };
+        },
+        ...(customOptions as any).serializers,
+      },
+      redact: ['req.headers["x-client-token"]', 'req.headers.x-client-token'],
+    };
+  }
+
+  const app = Fastify({ logger: loggerConfig });
   const db = new Database(options.dbLocation || ':memory:');
   const scheduler = new Scheduler(db);
 
@@ -44,11 +77,17 @@ export async function createServer(options: ServerOptions = {}) {
     return { status: 'ok', timestamp: Date.now() };
   });
 
-  // Авторизация для всех остальных эндпоинтов через timing-safe хук
-  app.addHook('onRequest', createAuthHook(token));
+  // Авторизация для всех остальных эндпоинтов через timing-safe хук с rate-лимитом неудач
+  app.addHook(
+    'onRequest',
+    createAuthHook(token, {
+      maxFailures: options.maxAuthFailures,
+      windowMs: options.failureWindowMs,
+    })
+  );
 
-  // Регистрация маршрутов
-  await app.register(taskRoutes, { db });
+  // Регистрация маршрутов с передачей лимита задач
+  await app.register(taskRoutes, { db, maxTasks: options.maxTasks });
   await app.register(eventRoutes, { db });
   await app.register(jobRoutes, { scheduler });
   await app.register(syncRoutes, { db });

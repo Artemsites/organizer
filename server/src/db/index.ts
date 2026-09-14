@@ -74,6 +74,16 @@ export class Database {
     return row ? this.mapTaskRow(row) : null;
   }
 
+  /**
+   * Быстрый подсчет общего числа задач в базе (O(1) по индексу)
+   * для проверки лимита объема задач (Hard Cap).
+   */
+  getTasksCount(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM tasks');
+    const row = stmt.get() as { count: number };
+    return row.count;
+  }
+
   createTask(dto: CreateTaskDto): Task {
     const now = Date.now();
     const task: Task = {

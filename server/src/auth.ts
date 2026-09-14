@@ -58,29 +58,65 @@ export function verifyToken(clientToken: string | string[] | undefined, expected
   return crypto.timingSafeEqual(clientBuffer, expectedBuffer);
 }
 
+export interface AuthHookOptions {
+  maxFailures?: number;
+  windowMs?: number;
+}
+
 /**
- * Best Practice: Фабрика хуков (Hook Factory) и явное прерывание выполнения.
+ * Best Practice: Фабрика хуков (Hook Factory) с защитой от подбора (Anti-Brute-Force Rate Limiting).
  * 
- * 1. Инкапсуляция: фабрика замыкает `expectedToken`, избегая глобального состояния.
- * 2. В Fastify вызов `reply.send()` в хуке `onRequest` останавливает цепочку роутинга,
- *    однако явный `return` защищает от случайного продолжения выполнения кода
- *    внутри самого хука ниже по тексту (Defensive Programming).
+ * 1. Инкапсуляция: фабрика замыкает `expectedToken` и локальную in-memory Map счетчиков попыток.
+ * 2. Rate Limiting по IP: если с одного IP зафиксировано >= maxFailures ошибок авторизации
+ *    в рамках окна windowMs, последующие запросы немедленно отклоняются со статусом
+ *    HTTP 429 Too Many Requests, предотвращая бесконечный перебор секретов скриптами.
+ * 3. Happy Path сброс: при успешной авторизации счетчик ошибок очищается.
  */
-export function createAuthHook(expectedToken: string) {
+export function createAuthHook(expectedToken: string, options: AuthHookOptions = {}) {
+  const maxFailures = options.maxFailures ?? 5;
+  const windowMs = options.windowMs ?? 60_000;
+  const failureMap = new Map<string, { count: number; resetAt: number }>();
+
   return async function authHook(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     // Публичный эндпоинт healthcheck не требует авторизации (liveness probe)
     if (request.url.startsWith('/health')) {
       return;
     }
 
+    const ip = request.ip || 'unknown';
+    const now = Date.now();
+    const record = failureMap.get(ip);
+
+    // 1. Проверка лимита неудач (Rate Limiter)
+    if (record && now < record.resetAt && record.count >= maxFailures) {
+      reply.status(429).send({
+        success: false,
+        error: 'Too many failed authentication attempts. Try again later.',
+        timestamp: now,
+      });
+      return;
+    }
+
     const clientToken = request.headers['x-client-token'];
     if (!verifyToken(clientToken, expectedToken)) {
+      // Инкрементируем счетчик неудачных попыток
+      if (!record || now >= record.resetAt) {
+        failureMap.set(ip, { count: 1, resetAt: now + windowMs });
+      } else {
+        record.count++;
+      }
+
       reply.status(401).send({
         success: false,
         error: 'Unauthorized: invalid or missing x-client-token',
-        timestamp: Date.now(),
+        timestamp: now,
       });
       return; // Защитный ранний возврат
+    }
+
+    // При успешной авторизации сбрасываем историю неудач для данного IP
+    if (record) {
+      failureMap.delete(ip);
     }
   };
 }

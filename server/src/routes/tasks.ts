@@ -11,8 +11,14 @@ import { createTaskSchema, updateTaskSchema } from './schemas.js';
  * - Mass Assignment Protection — передача строго `parsed.data` вместо исходного `request.body`
  *   гарантирует, что лишние поля отсечены на входе и не попадут в базу данных.
  */
-export async function taskRoutes(fastify: FastifyInstance, options: { db: Database }) {
+export interface TaskRoutesOptions {
+  db: Database;
+  maxTasks?: number;
+}
+
+export async function taskRoutes(fastify: FastifyInstance, options: TaskRoutesOptions) {
   const { db } = options;
+  const maxTasks = options.maxTasks ?? (Number(process.env.MAX_TASKS) || 2500);
 
   // Получить список задач
   fastify.get('/api/v1/tasks', async (request) => {
@@ -39,11 +45,23 @@ export async function taskRoutes(fastify: FastifyInstance, options: { db: Databa
   /**
    * POST /api/v1/tasks — Создание задачи.
    * 
-   * Best Practice: Fail-Fast валидация с единым контрактом ошибок.
-   * Если валидация не прошла, хендлер немедленно завершается со статусом 400 Bad Request,
-   * предотвращая вызов БД.
+   * Best Practice:
+   * 1. Hard Cap (Потолок записей): защита от DoS / Disk Exhaustion. Если бот или скрипт
+   *    начнет бесконечно заливать задачи, SQLite заполнит диск ПК. Проверка O(1)
+   *    отсекает создание сверх лимита (по умолчанию 2500 задач).
+   * 2. Fail-Fast валидация Zod: не пускаем грязные данные в БД.
    */
   fastify.post('/api/v1/tasks', async (request, reply) => {
+    // 1. Проверка физического потолка записей в БД
+    if (db.getTasksCount() >= maxTasks) {
+      reply.status(400);
+      return {
+        success: false,
+        error: `Task limit reached: maximum ${maxTasks} tasks allowed`,
+        timestamp: Date.now(),
+      };
+    }
+
     const parsed = createTaskSchema.safeParse(request.body);
     if (!parsed.success) {
       reply.status(400);
