@@ -1,0 +1,17 @@
+{
+  "name": "organizer-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "cli",
+    "web"
+  ],
+  "scripts": {
+    "server:dev": "npm --prefix server run dev",
+    "cli:dev": "npm --prefix cli run dev",
+    "web:dev": "npm --prefix web run dev",
+    "build": "npm run --workspaces --if-present build"
+  }
+}

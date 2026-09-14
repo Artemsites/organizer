@@ -1,0 +1,168 @@
+@use 'variables' as *;
+@use 'reset';
+
+#app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  width: 100%;
+  height: 100%;
+}
+
+/* Сайдбар */
+.sidebar {
+  background: $color-surface;
+  border-right: 1px solid $color-border;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  gap: 20px;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #60a5fa;
+
+    .brand-icon {
+      font-size: 1.4rem;
+    }
+  }
+
+  &__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: $radius-md;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    color: $color-text-muted;
+    transition: all $transition-base;
+
+    &:hover {
+      background: $color-surface-hover;
+      color: $color-text;
+    }
+
+    &.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+    }
+
+    .badge {
+      margin-left: auto;
+      font-size: 0.75rem;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+  }
+
+  &__footer {
+    margin-top: auto;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+    border-top: 1px solid $color-border-light;
+    padding-top: 12px;
+  }
+}
+
+/* Основное рабочее пространство */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: $color-bg;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 28px;
+  border-bottom: 1px solid $color-border-light;
+  background: rgba(30, 41, 59, 0.5);
+  backdrop-filter: blur(8px);
+
+  &__title {
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+
+  &__meta {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+  }
+}
+
+.module-container {
+  padding: 28px;
+  flex: 1;
+}
+
+/* Общие UI компоненты */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: $radius-sm;
+  border: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all $transition-base;
+
+  &--primary {
+    background: $color-primary;
+    color: #fff;
+    &:hover { background: $color-primary-hover; }
+  }
+
+  &--danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    &:hover { background: #ef4444; color: #fff; }
+  }
+}
+
+.input {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  padding: 8px 14px;
+  color: $color-text;
+  font-size: 0.9rem;
+  transition: border-color $transition-base;
+
+  &:focus {
+    outline: none;
+    border-color: $color-primary;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+}
+
+.card {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  padding: 16px 20px;
+  box-shadow: $shadow-sm;
+}
