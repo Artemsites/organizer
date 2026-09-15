@@ -1,0 +1,276 @@
+// ==============================================================================
+// APP-SHELL COMPONENT & LAYOUT STYLES (_app-shell.scss)
+// ==============================================================================
+// Best Practices & Programmer Concepts:
+// 1. Mobile-First Approach (Сначала мобильные):
+//    Базовые CSS-правила проектируются под экраны мобильных устройств. Расширение
+//    лейаута под десктоп выполняется строго через медиа-миксин @include min-bp('md').
+// 2. CSS Logical Properties (Логические свойства CSS):
+//    Вместо физических направлений (left/right/top/bottom) используем логические
+//    (inline/block, inset-inline-start). Это обеспечивает автоматическую поддержку
+//    RTL-режимов (Right-to-Left, арабский/иврит) без изменения разметки и стилей.
+// 3. Off-Canvas Drawer Pattern:
+//    На мобильных сайдбар прячется за левый край вьюпорта (transform: translateX(-100%))
+//    и плавно выезжает поверх интерфейса с полупрозрачным бэкдропом (Backdrop Overlay).
+// 4. Hardware Acceleration (Аппаратное ускорение 60 FPS):
+//    Выезд панели через transform и смена прозрачности оверлея через opacity минуют
+//    фазы Layout (пересчет геометрии) и Paint (растеризация), выполняясь на GPU.
+// 5. Zero Nesting BEM:
+//    Все селекторы написаны строго плоско (.sidebar, .sidebar__item, .sidebar--open)
+//    для 100% Grepability и отсутствия каскадного ада специфичности.
+// 6. Media Query Inside Elements:
+//    Медиа-запросы пишутся строго внутри каждого BEM-элемента, сохраняя контекст.
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+#app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Каркас сетки приложения (Application Grid Shell) */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+
+  @include min-bp('md') {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+  }
+}
+
+/* Полупрозрачная подложка (Backdrop Overlay) для мобильного меню */
+// Best Practice (Paint = 0 / 60 FPS Performance):
+// 1. Избегаем 'backdrop-filter: blur()': он требует чтения пикселей слоев за элементом
+//    в промежуточный буфер GPU (Texture Readback) и многопроходного размытия (Gaussian Blur),
+//    что вызывает микрофризы (Jank) и падение FPS на мобильных чипах.
+// 2. Используем простое альфа-затемнение + transition по opacity на отдельном GPU-слое.
+// 3. 'visibility: hidden': исключает невидимый оверлей из дерева отрисовки браузера,
+//    предотвращая холостую нагрузку на GPU-композитор, пока меню закрыто.
+.sidebar__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: z('sticky');
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity $transition-base, visibility $transition-base;
+
+  @include min-bp('md') {
+    display: none;
+  }
+}
+
+.sidebar__backdrop--visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Боковая навигационная панель (Sidebar Drawer) */
+.sidebar {
+  background: var(--color-surface);
+  border-inline-end: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  padding-block: 20px;
+  padding-inline: 16px;
+  gap: 20px;
+
+  // Мобильный режим: Off-Canvas панель, скрытая за пределами экрана
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 280px;
+  z-index: z('drawer');
+  transform: translateX(-100%);
+  transition: transform $transition-base;
+  box-shadow: shadow('lg');
+  @include hardware-accel;
+
+  // Десктопный режим: статическая колонка сетки
+  @include min-bp('md') {
+    position: static;
+    transform: none;
+    box-shadow: none;
+    z-index: auto;
+    width: auto;
+    transition: none;
+  }
+}
+
+.sidebar--open {
+  transform: translateX(0);
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: fs('md');
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.sidebar__brand-icon {
+  font-size: fs('xl');
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 10px;
+  padding-inline: 14px;
+  border-radius: radius('md');
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: all $transition-base;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &.active {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: var(--color-primary);
+  }
+}
+
+.sidebar__item-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: fs('base');
+}
+
+.sidebar__item-title {
+  display: inline-block;
+  font-size: fs('sm');
+}
+
+.sidebar__badge {
+  margin-inline-start: auto;
+  font-size: fs('xs');
+  background: var(--color-surface-hover);
+  padding-block: 2px;
+  padding-inline: 7px;
+  border-radius: radius('full');
+}
+
+.sidebar__footer {
+  margin-block-start: auto;
+  font-size: fs('xs');
+  color: var(--color-text-muted);
+  border-block-start: 1px solid var(--color-border-light);
+  padding-block-start: 12px;
+}
+
+/* Основное рабочее пространство контента */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--color-bg);
+  min-height: 0; // Предотвращает переполнение flex/grid контейнера
+  flex: 1;
+}
+
+/* Верхняя шапка (Top Bar) */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-block: 14px;
+  padding-inline: 16px;
+  border-block-end: 1px solid var(--color-border-light);
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: z('sticky');
+
+  @include min-bp('md') {
+    padding-block: 18px;
+    padding-inline: 28px;
+    position: static;
+  }
+}
+
+.top-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Кнопка открытия меню на мобильных экранах */
+// UX Requirement: область клика минимум 44x44 px для удобства тача
+.top-bar__menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: radius('sm');
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: fs('lg');
+  cursor: pointer;
+  transition: all $transition-base;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-primary);
+  }
+
+  @include min-bp('md') {
+    display: none;
+  }
+}
+
+.top-bar__title {
+  font-size: fs('lg');
+  font-weight: 700;
+
+  @include min-bp('md') {
+    font-size: fs('xl');
+  }
+}
+
+.top-bar__meta {
+  font-size: fs('xs');
+  color: var(--color-text-muted);
+  display: none;
+
+  @include min-bp('md') {
+    display: block;
+    font-size: fs('sm');
+  }
+}
+
+/* Контейнер текущего активного модуля */
+.module-container {
+  padding-block: 16px;
+  padding-inline: 16px;
+  flex: 1;
+
+  @include min-bp('md') {
+    padding-block: 28px;
+    padding-inline: 28px;
+  }
+}

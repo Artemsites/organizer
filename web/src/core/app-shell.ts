@@ -8,6 +8,9 @@ export class AppShell {
   private modules: Map<string, OrganizerModule> = new Map();
   private currentModuleId: string | null = null;
   private container: HTMLElement;
+  private sidebarElement!: HTMLElement;
+  private backdropElement!: HTMLElement;
+  private menuToggleBtn!: HTMLElement;
   private navContainer!: HTMLElement;
   private contentContainer!: HTMLElement;
   private titleElement!: HTMLElement;
@@ -21,7 +24,8 @@ export class AppShell {
   private renderLayout(): void {
     this.container.innerHTML = `
       <div class="app-shell">
-        <aside class="sidebar">
+        <div class="sidebar__backdrop" id="sidebar-backdrop"></div>
+        <aside class="sidebar" id="sidebar">
           <div class="sidebar__brand">
             <span class="brand-icon sidebar__brand-icon">⚡</span>
             <span>Органайзер</span>
@@ -33,7 +37,17 @@ export class AppShell {
         </aside>
         <main class="main-area">
           <header class="top-bar">
-            <h1 class="top-bar__title" id="module-title">Загрузка...</h1>
+            <div class="top-bar__left">
+              <button
+                id="menu-toggle"
+                class="top-bar__menu-btn"
+                type="button"
+                aria-label="Переключить навигационное меню"
+                aria-expanded="false"
+                aria-controls="sidebar"
+              >☰</button>
+              <h1 class="top-bar__title" id="module-title">Загрузка...</h1>
+            </div>
             <div class="top-bar__meta">Нативный DOM API • Модульная архитектура</div>
           </header>
           <section class="module-container" id="module-content"></section>
@@ -41,6 +55,9 @@ export class AppShell {
       </div>
     `;
 
+    this.sidebarElement = this.container.querySelector('#sidebar')!;
+    this.backdropElement = this.container.querySelector('#sidebar-backdrop')!;
+    this.menuToggleBtn = this.container.querySelector('#menu-toggle')!;
     this.navContainer = this.container.querySelector('#sidebar-nav')!;
     this.contentContainer = this.container.querySelector('#module-content')!;
     this.titleElement = this.container.querySelector('#module-title')!;
@@ -50,6 +67,37 @@ export class AppShell {
     globalEvents.on('module:badge-updated', () => {
       this.updateBadges();
     });
+
+    // Best Practice: Управление Off-Canvas Drawer (выездной панелью)
+    this.menuToggleBtn.addEventListener('click', () => {
+      this.toggleSidebar();
+    });
+
+    this.backdropElement.addEventListener('click', () => {
+      this.closeSidebar();
+    });
+
+    // Best Practice (a11y): Закрытие оверлея по клавише Escape
+    document.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && this.isSidebarOpen()) {
+        this.closeSidebar();
+      }
+    });
+  }
+
+  isSidebarOpen(): boolean {
+    return this.sidebarElement.classList.contains('sidebar--open');
+  }
+
+  toggleSidebar(isOpen?: boolean): void {
+    const shouldOpen = isOpen !== undefined ? isOpen : !this.isSidebarOpen();
+    this.sidebarElement.classList.toggle('sidebar--open', shouldOpen);
+    this.backdropElement.classList.toggle('sidebar__backdrop--visible', shouldOpen);
+    this.menuToggleBtn.setAttribute('aria-expanded', String(shouldOpen));
+  }
+
+  closeSidebar(): void {
+    this.toggleSidebar(false);
   }
 
   registerModule(module: OrganizerModule): void {
@@ -104,6 +152,11 @@ export class AppShell {
     // Очистка контейнера и инициализация нового модуля
     this.contentContainer.innerHTML = '';
     nextModule.init(this.contentContainer);
+
+    // Автоматически скрываем мобильный Drawer после выбора модуля
+    if (this.isSidebarOpen()) {
+      this.closeSidebar();
+    }
 
     this.updateBadges();
   }

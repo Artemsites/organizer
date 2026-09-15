@@ -262,11 +262,11 @@ organizer/
       - `_reset.scss`: перенос и дополнение современного CSS-reset (box-sizing, text-rendering, font smoothing).
       - `_index.scss`: публичный экспорт слоя через `@forward`.
     - DoD: цвета и радиусы в браузере считываются через `var(--...)`.
-  - [ ] Шаг 13.3: Лейаут, адаптив и Logical Properties `[Model: Mid, Effort: Medium]`
+  - [x] Шаг 13.3: Лейаут, адаптив и Logical Properties `[Model: Mid, Effort: Medium]`
     - Выделить лейаут в `web/src/styles/components/_app-shell.scss`.
     - Перевести лейаут на CSS Logical Properties: `padding-inline`, `padding-block`, `margin-block`, `border-inline-end`.
-    - Реализовать адаптив: на мобильных (`< 768px`) сайдбар переходит в компактный режим / скрываемое меню с помощью `respond-to('md')`.
-    - Никаких «голых» `@media` — только миксин `respond-to`.
+    - Реализовать адаптив: на мобильных (`< 768px`) сайдбар переходит в компактный режим / скрываемое меню с помощью `min-bp('md')`.
+    - Никаких «голых» `@media` — только миксины `min-bp` и `max-bp`.
     - DoD: при смене размера окна сетка адаптируется без горизонтального скролла; инспекция показывает `margin-inline`/`padding-block`.
   - [ ] Шаг 13.4: UI-компоненты, `clip-path` и 60fps-анимации `[Model: Mid, Effort: Medium]`
     - Выделить общие стили кнопок, инпутов и карточек в `web/src/styles/components/` (`_button.scss`, `_input.scss`, `_card.scss`).
