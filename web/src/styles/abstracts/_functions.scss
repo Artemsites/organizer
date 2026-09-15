@@ -1,0 +1,73 @@
+// ==============================================================================
+// SCSS FUNCTIONS (_functions.scss)
+// ==============================================================================
+// Best Practice: Defensive Programming (Защитное программирование) & Fail-Fast.
+// Вместо прямого вызова map.get($map, $key), который при опечатке вернет 'null'
+// и тихо сломает верстку в рантайме, мы оборачиваем доступ в чистые функции (Pure Functions).
+// Если ключ не найден — компилятор Sass упадет на этапе сборки с понятной ошибкой!
+// ==============================================================================
+
+@use 'sass:map';
+@use 'variables' as vars;
+
+/// Получить значение брейкпоинта по имени ключа
+/// @param {String} $key - имя брейкпоинта ('xs', 'sm', 'md', 'lg', 'xl', '2xl')
+/// @return {Number} значение ширины в px
+@function bp($key) {
+  @if not map.has-key(vars.$breakpoints, $key) {
+    @error "Unknown breakpoint '#{$key}'. Allowed values: #{map.keys(vars.$breakpoints)}";
+  }
+  @return map.get(vars.$breakpoints, $key);
+}
+
+/// Получить уровень z-index из карты слоев наложения (Stacking Context)
+/// @param {String} $layer - имя слоя ('below', 'base', 'dropdown', 'modal', etc.)
+/// @return {Number} числовое значение z-index
+@function z($layer) {
+  @if not map.has-key(vars.$z-layers, $layer) {
+    @error "Unknown z-index layer '#{$layer}'. Allowed layers: #{map.keys(vars.$z-layers)}";
+  }
+  @return map.get(vars.$z-layers, $layer);
+}
+
+/// Получить семантический цвет из палитры токенов
+/// @param {String} $name - ключ цвета ('primary', 'surface', 'danger', etc.)
+/// @return {Color} значение цвета
+@function color($name) {
+  @if not map.has-key(vars.$colors, $name) {
+    @error "Unknown color token '#{$name}'. Allowed tokens: #{map.keys(vars.$colors)}";
+  }
+  @return map.get(vars.$colors, $name);
+}
+
+/// Получить радиус скругления из шкалы
+/// @param {String} $size - размер ('none', 'sm', 'md', 'lg', 'full')
+/// @return {Number} значение радиуса в px
+@function radius($size) {
+  @if not map.has-key(vars.$radii, $size) {
+    @error "Unknown radius '#{$size}'. Allowed sizes: #{map.keys(vars.$radii)}";
+  }
+  @return map.get(vars.$radii, $size);
+}
+
+/// Получить параметры тени из шкалы shadows
+/// @param {String} $size - размер ('sm', 'md', 'lg')
+/// @return {List} значение box-shadow
+@function shadow($size) {
+  @if not map.has-key(vars.$shadows, $size) {
+    @error "Unknown shadow '#{$size}'. Allowed sizes: #{map.keys(vars.$shadows)}";
+  }
+  @return map.get(vars.$shadows, $size);
+}
+
+/// Получить кегль шрифта из шкалы font-sizes
+/// @param {String} $size - размер ('2xs', 'xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3xl')
+/// @return {Number} значение в rem
+@function fs($size) {
+  @if not map.has-key(vars.$font-sizes, $size) {
+    @error "Unknown font-size '#{$size}'. Allowed sizes: #{map.keys(vars.$font-sizes)}";
+  }
+  @return map.get(vars.$font-sizes, $size);
+}
+
+

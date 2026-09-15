@@ -1,0 +1,71 @@
+// ==============================================================================
+// SCSS MIXINS (_mixins.scss)
+// ==============================================================================
+// Programmer terms:
+// - Mixin (миксин / примесь): переиспользуемый блок стилей, принимающий параметры.
+// - @content: директива-плейсхолдер в Sass, куда инжектится блок кода из @include.
+// - Hardware Acceleration (Аппаратное ускорение): перенос отрисовки на графический
+//   чип (GPU) за счет создания отдельного композитного слоя (Compositing Layer).
+// - Responsive Design (Адаптивный дизайн): подстройка интерфейса под разные Viewport.
+// ==============================================================================
+
+@use 'functions' as fn;
+@use 'variables' as vars;
+
+/// Медиа-запрос для Mobile-First подхода (min-width)
+/// Best Practice: Никаких "магических чисел" вида @media (min-width: 768px).
+/// Всегда используем семантические брейкпоинты через единую точку правды (SSOT).
+///
+/// Пример использования:
+/// .sidebar {
+///   display: none;
+///   @include min-bp('md') {
+///     display: flex;
+///   }
+/// }
+///
+/// @param {String} $breakpoint - имя брейкпоинта из $breakpoints ('sm', 'md', 'lg', etc.)
+@mixin min-bp($breakpoint) {
+  $min-width: fn.bp($breakpoint);
+
+  @media (min-width: $min-width) {
+    @content; // Сюда подставится всё тело правил, переданное в фигурных скобках
+  }
+}
+
+/// Медиа-запрос для исключений Desktop-First (max-width)
+/// Используется только когда логичнее задать стили "до определенного размера".
+/// Вычитаем 0.02px для предотвращения коллизий при субпиксельном рендеринге экранов.
+/// @param {String} $breakpoint - верхняя граница экрана
+@mixin max-bp($breakpoint) {
+  $max-width: fn.bp($breakpoint) - 0.02px;
+
+  @media (max-width: $max-width) {
+    @content;
+  }
+}
+
+/// Аппаратное ускорение для плавных 60 FPS / 120 FPS анимаций
+/// Best Practice: Layer Promotion (Создание композитного слоя на GPU).
+/// Браузер изолирует отрисовку элемента в отдельную текстуру видеопамяти.
+/// При изменении transform и opacity браузер не пересчитывает геометрию всего DOM
+/// (минует фазы Layout/Reflow и Paint), передавая задачу композитору видеокарты.
+@mixin hardware-accel {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/// Утилита для обрезки длинного однострочного текста с многоточием
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/// Быстрое центрирование flex-контейнера
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

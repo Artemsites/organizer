@@ -1,0 +1,98 @@
+// ==============================================================================
+// DESIGN TOKENS & SCSS MAPS (_variables.scss)
+// ==============================================================================
+// Best Practice: Single Source of Truth (SSOT).
+// Вместо разрозненных переменных $color-1, $color-2 группируем связанные значения
+// в ассоциативные массивы (SCSS Maps). Это позволяет:
+// 1. Избегать опечаток и коллизий имён (Name Collisions).
+// 2. Итерироваться по значениям через @each (например, для генерации утилит).
+// 3. Писать типобезопасные функции-геттеры с валидацией через sass:map.
+// ==============================================================================
+
+// Breakpoints Map (Точки останова для Mobile-First вёрстки)
+// Programmer terms:
+// - Breakpoints: контрольные точки ширины экрана, где макет перестраивается.
+// - Mobile-First: стили по умолчанию для мобилок, расширение через min-width.
+$breakpoints: (
+  'xs': 320px,   // Маленькие мобильные экраны
+  'sm': 576px,   // Крупные смартфоны
+  'md': 768px,   // Планшеты (портретная ориентация)
+  'lg': 992px,   // Десктопы и планшеты (ландшафт)
+  'xl': 1200px,  // Широкие мониторы
+  '2xl': 1600px  // Ультраширокие экраны
+);
+
+// Z-Index Stacking Layers Map (Шкала слоёв наложения)
+// Best Practice: Никогда не писать z-index: 999999 вручную (Z-index Hell)!
+// Управляем иерархией слоёв централизованно через именованные уровни (Stacking Context).
+$z-layers: (
+  'below':   -1,
+  'base':     0,
+  'elevated': 10,
+  'dropdown': 100,
+  'sticky':   200,
+  'drawer':   400,
+  'modal':    500,
+  'popover':  600,
+  'toast':    1000
+);
+
+// Semantic Color Palette (Цветовые токены)
+// Best Practice: Semantic Naming (семантические имена: primary, surface, danger)
+// вместо визуальных (blue, dark-grey). Это упрощает темизацию (Light/Dark themes).
+$colors: (
+  'bg': #0f172a,
+  'surface': #1e293b,
+  'surface-hover': #334155,
+  'border': #475569,
+  'border-light': rgba(255, 255, 255, 0.08),
+  'text': #f8fafc,
+  'text-muted': #94a3b8,
+  'primary': #3b82f6,
+  'primary-hover': #2563eb,
+  'success': #10b981,
+  'warning': #f59e0b,
+  'danger': #ef4444
+);
+
+// Radii Scale (Шкала скругления углов)
+$radii: (
+  'none': 0,
+  'sm': 6px,
+  'md': 10px,
+  'lg': 16px,
+  'full': 9999px
+);
+
+// Shadows Map (Шкала глубины / Elevation)
+$shadows: (
+  'sm': (0 1px 3px rgba(0, 0, 0, 0.3)),
+  'md': (0 4px 12px rgba(0, 0, 0, 0.4)),
+  'lg': (0 8px 24px rgba(0, 0, 0, 0.5))
+);
+
+// Typography & Font Stacks
+$font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+$font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+// Typographic Scale (Шкала размеров шрифта)
+// Best Practice: Единая шкала кеглей для типографики всего приложения.
+$font-sizes: (
+  '2xs': 0.7rem,    // 11px
+  'xs':  0.75rem,   // 12px — бейджи, футер, мелкие метаданные
+  'sm':  0.875rem,  // 14px — кнопки, фильтры, вторичный текст
+  'base': 1rem,     // 16px — основной текст, инпуты, пункты навигации
+  'md':  1.125rem,  // 18px — название приложения в шапке
+  'lg':  1.25rem,   // 20px — подзаголовки
+  'xl':  1.4rem,    // 22px — крупные акцентные иконки
+  '2xl': 1.5rem,    // 24px — заголовки экранов и модулей
+  '3xl': 1.875rem   // 30px — крупные H1
+);
+
+// Animation & Motion Timings
+// Best Practice: Cubic-bezier curve для естественных "пружинящих" и плавных движений.
+$ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+$duration-fast: 0.15s;
+$duration-normal: 0.25s;
+$duration-slow: 0.4s;
+$transition-base: $duration-normal $ease-out-smooth;
