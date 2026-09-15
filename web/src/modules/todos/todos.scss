@@ -2,11 +2,10 @@
 // TODOS MODULE STYLES (todos.scss)
 // ==============================================================================
 // Best Practices:
-// 1. Full BEM Selectors: пишем полные имена .todo-app__element, а не сшиваем
-//    через амперсанд .todo-app { &__element {} }. Это обеспечивает 100% Grepability
-//    (мгновенный поиск по кодовой базе в IDE) и предотвращает каскадный ад специфичности.
-// 2. CSS Logical Properties: используем padding-inline/block вместо физических left/top/right/bottom.
-// 3. Single Source of Truth: доступ к цветам и радиусам через функции color() и radius().
+// 1. Full BEM Selectors: пишем полные имена .todo-app__element, а не сшиваем через амперсанд.
+// 2. CSS Logical Properties: padding-inline/block, border-block-end.
+// 3. Runtime Theming: var(--color-*) ТОЛЬКО для динамических цветов темы.
+//    Статические радиусы radius() и транзишены $transition-base вычисляются в SCSS.
 // ==============================================================================
 
 @use '../../styles/abstracts' as *;
@@ -30,7 +29,7 @@
 .todo-app__filters {
   display: flex;
   gap: 8px;
-  border-block-end: 1px solid color('border-light');
+  border-block-end: 1px solid var(--color-border-light);
   padding-block-end: 12px;
 }
 
@@ -42,16 +41,16 @@
   border-radius: radius('sm');
   cursor: pointer;
   font-size: fs('sm');
-  color: color('text-muted');
+  color: var(--color-text-muted);
   transition: all $transition-base;
 
   &:hover {
-    color: color('text');
-    background: color('surface');
+    color: var(--color-text);
+    background: var(--color-surface);
   }
 
   &.active {
-    color: #93c5fd;
+    color: var(--color-primary);
     background: rgba(59, 130, 246, 0.15);
     font-weight: 600;
   }
@@ -69,8 +68,8 @@
   gap: 12px;
   padding-block: 12px;
   padding-inline: 16px;
-  background: color('surface');
-  border: 1px solid color('border');
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: radius('md');
   transition: all $transition-base;
 
@@ -83,7 +82,7 @@
 
     .todo-app__text {
       text-decoration: line-through;
-      color: color('text-muted');
+      color: var(--color-text-muted);
     }
   }
 }
@@ -113,7 +112,7 @@
   &:hover {
     opacity: 1;
     background: rgba(239, 68, 68, 0.2);
-    color: color('danger');
+    color: var(--color-danger);
   }
 }
 
@@ -121,7 +120,7 @@
   text-align: center;
   padding-block: 40px;
   padding-inline: 20px;
-  color: color('text-muted');
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
@@ -130,6 +129,6 @@
   justify-content: space-between;
   align-items: center;
   font-size: fs('sm');
-  color: color('text-muted');
+  color: var(--color-text-muted);
   padding-block-start: 8px;
 }

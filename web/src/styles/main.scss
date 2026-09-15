@@ -2,14 +2,14 @@
 // MAIN APPLICATION STYLES (main.scss)
 // ==============================================================================
 // Best Practices:
-// 1. Full BEM Selectors: пишем полные имена .sidebar__nav, .sidebar__item,
-//    а не склеиваем через амперсанд &__nav. Обеспечивает 100% Grepability и читаемость.
+// 1. Full BEM Selectors: пишем полные имена .sidebar__nav, .sidebar__item без вложенности.
 // 2. CSS Logical Properties: padding-inline/block, margin-inline, border-inline-end.
-// 3. Centralized Tokens: доступ к цветам, радиусам и теням через функции color(), radius(), shadow().
+// 3. Runtime Theming via CSS Custom Properties: var(--color-*) ТОЛЬКО для динамических
+//    цветов темы. Статические свойства (радиусы, шрифты, транзишены) остаются в SCSS.
 // ==============================================================================
 
 @use 'abstracts' as *;
-@use 'reset';
+@use 'base';
 
 #app {
   display: flex;
@@ -26,8 +26,8 @@
 
 /* Сайдбар */
 .sidebar {
-  background: color('surface');
-  border-inline-end: 1px solid color('border');
+  background: var(--color-surface);
+  border-inline-end: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   padding-block: 20px;
@@ -41,7 +41,7 @@
   gap: 10px;
   font-size: fs('md');
   font-weight: 700;
-  color: #60a5fa;
+  color: var(--color-primary);
 }
 
 .sidebar__brand-icon {
@@ -64,25 +64,25 @@
   border: 1px solid transparent;
   cursor: pointer;
   font-weight: 500;
-  color: color('text-muted');
+  color: var(--color-text-muted);
   transition: all $transition-base;
 
   &:hover {
-    background: color('surface-hover');
-    color: color('text');
+    background: var(--color-surface-hover);
+    color: var(--color-text);
   }
 
   &.active {
     background: rgba(59, 130, 246, 0.15);
     border-color: rgba(59, 130, 246, 0.4);
-    color: #93c5fd;
+    color: var(--color-primary);
   }
 }
 
 .sidebar__badge {
   margin-inline-start: auto;
   font-size: fs('xs');
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-surface-hover);
   padding-block: 2px;
   padding-inline: 7px;
   border-radius: radius('full');
@@ -91,8 +91,8 @@
 .sidebar__footer {
   margin-block-start: auto;
   font-size: fs('xs');
-  color: color('text-muted');
-  border-block-start: 1px solid color('border-light');
+  color: var(--color-text-muted);
+  border-block-start: 1px solid var(--color-border-light);
   padding-block-start: 12px;
 }
 
@@ -101,7 +101,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background: color('bg');
+  background: var(--color-bg);
 }
 
 .top-bar {
@@ -110,8 +110,8 @@
   align-items: center;
   padding-block: 18px;
   padding-inline: 28px;
-  border-block-end: 1px solid color('border-light');
-  background: rgba(30, 41, 59, 0.5);
+  border-block-end: 1px solid var(--color-border-light);
+  background: var(--color-surface);
   backdrop-filter: blur(8px);
 }
 
@@ -122,7 +122,7 @@
 
 .top-bar__meta {
   font-size: fs('sm');
-  color: color('text-muted');
+  color: var(--color-text-muted);
 }
 
 .module-container {
@@ -147,11 +147,11 @@
 }
 
 .btn--primary {
-  background: color('primary');
+  background: var(--color-primary);
   color: #fff;
 
   &:hover {
-    background: color('primary-hover');
+    background: var(--color-primary-hover);
   }
 }
 
@@ -161,31 +161,31 @@
   border: 1px solid rgba(239, 68, 68, 0.4);
 
   &:hover {
-    background: color('danger');
+    background: var(--color-danger);
     color: #fff;
   }
 }
 
 .input {
-  background: color('surface');
-  border: 1px solid color('border');
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: radius('sm');
   padding-block: 8px;
   padding-inline: 14px;
-  color: color('text');
+  color: var(--color-text);
   font-size: fs('sm');
   transition: border-color $transition-base;
 
   &:focus {
     outline: none;
-    border-color: color('primary');
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
   }
 }
 
 .card {
-  background: color('surface');
-  border: 1px solid color('border');
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: radius('md');
   padding-block: 16px;
   padding-inline: 20px;
