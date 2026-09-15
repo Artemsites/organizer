@@ -1,0 +1,47 @@
+// ==============================================================================
+// CSS RESET & BASE STYLES (_reset.scss)
+// ==============================================================================
+// Best Practices:
+// 1. Box Sizing: border-box для всех элементов для предсказуемого расчёта размеров.
+// 2. Font Smoothing: субпиксельное сглаживание шрифтов на WebKit и Firefox.
+// 3. CSS Variables: базовый фон и цвет текста считываются из рантайм-токенов темы.
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: $font-sans;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
