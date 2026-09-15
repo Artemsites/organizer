@@ -1,0 +1,25 @@
+// ==============================================================================
+// ROOT CSS CUSTOM PROPERTIES (_root.scss)
+// ==============================================================================
+// Programmer terms:
+// - Data-Driven CSS Generation: генерация переменных циклом @each из SCSS Maps.
+// - Runtime Theming: переключение темы (Light по умолчанию, Dark опционально)
+//   через атрибут data-theme="dark".
+// - SSOT: значения цветов берутся строго из карт $theme-light и $theme-dark.
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+:root {
+  // Светлая тема по умолчанию
+  @each $name, $value in $theme-light {
+    --color-#{$name}: #{$value};
+  }
+}
+
+// Опциональная тёмная тема
+:root[data-theme='dark'] {
+  @each $name, $value in $theme-dark {
+    --color-#{$name}: #{$value};
+  }
+}
