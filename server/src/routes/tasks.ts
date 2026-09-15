@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { TaskStatus } from '@organizer/shared';
 import type { Database } from '../db/index.js';
 import { createTaskSchema, updateTaskSchema } from './schemas.js';
 
@@ -20,10 +21,10 @@ export async function taskRoutes(fastify: FastifyInstance, options: TaskRoutesOp
   const { db } = options;
   const maxTasks = options.maxTasks ?? (Number(process.env.MAX_TASKS) || 2500);
 
-  // Получить список задач
+  // Получить список задач. `?status=todo,in_progress` — один round-trip для фильтра.
   fastify.get('/api/v1/tasks', async (request) => {
-    const query = request.query as { status?: string };
-    const tasks = db.getTasks(query.status);
+    const raw = (request.query as { status?: string | string[] }).status;
+    const tasks = db.getTasks(parseStatusQuery(raw));
     return {
       success: true,
       data: tasks,
@@ -112,4 +113,13 @@ export async function taskRoutes(fastify: FastifyInstance, options: TaskRoutesOp
     db.deleteTask(id);
     return { success: true, timestamp: Date.now() };
   });
+}
+
+function parseStatusQuery(raw?: string | string[]): TaskStatus | TaskStatus[] | undefined {
+  if (raw === undefined) return undefined;
+  const parts = (Array.isArray(raw) ? raw : raw.split(','))
+    .map((s) => s.trim())
+    .filter(Boolean) as TaskStatus[];
+  if (parts.length === 0) return undefined;
+  return parts.length === 1 ? parts[0] : parts;
 }

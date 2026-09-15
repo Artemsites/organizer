@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { SCHEMA_SQL } from './schema.js';
-import type { Task, CalendarEvent, Job, ClientNode, CreateTaskDto, UpdateTaskDto, CreateEventDto } from '@organizer/shared';
+import type { Task, TaskStatus, CalendarEvent, Job, ClientNode, CreateTaskDto, UpdateTaskDto, CreateEventDto } from '@organizer/shared';
 
 export interface DbClientRow {
   id: string;
@@ -60,12 +60,29 @@ export class Database {
 
   // --- Tasks ---
 
-  getTasks(status?: string): Task[] {
+  /**
+   * Список задач. Без фильтра — все. Один статус или массив — `WHERE status IN (...)`.
+   * Массив нужен веб-фильтру «активные» (4 статуса = 1 запрос, не 4).
+   */
+  getTasks(status?: TaskStatus | readonly TaskStatus[]): Task[] {
+    if (status === undefined) {
+      // stmt = statement: Prepared Statement — SQL, заранее разобранный SQLite.
+      const stmt = this.db.prepare('SELECT * FROM tasks ORDER BY created_at DESC');
+      return (stmt.all() as unknown as DbTaskRow[]).map(this.mapTaskRow);
+    }
+
+    const statuses = Array.isArray(status) ? status : [status];
+    if (statuses.length === 0) return [];
+
+    // Placeholders — плейсхолдеры `?` в SQL. Число знаков = числу статусов:
+    // SQLite не разворачивает массив в одном `?`, нужен `IN (?, ?, ?)`.
+    // Значения биндятся `stmt.all(...statuses)`, в строку не склеиваются —
+    // bind, не конкатенация: защита от SQL Injection на query string.
+    const placeholders = statuses.map(() => '?').join(', ');
     const stmt = this.db.prepare(
-      `SELECT * FROM tasks ${status ? 'WHERE status = ?' : ''} ORDER BY created_at DESC`
+      `SELECT * FROM tasks WHERE status IN (${placeholders}) ORDER BY created_at DESC`
     );
-    const rows = (status ? stmt.all(status) : stmt.all()) as unknown as DbTaskRow[];
-    return rows.map(this.mapTaskRow);
+    return (stmt.all(...statuses) as unknown as DbTaskRow[]).map(this.mapTaskRow);
   }
 
   getTaskById(id: string): Task | null {
