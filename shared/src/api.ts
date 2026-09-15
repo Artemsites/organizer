@@ -16,6 +16,7 @@ export interface AuthHeaders {
 export interface CreateTaskDto {
   title: string;
   description?: string;
+  status?: Task['status'];
   priority?: Task['priority'];
   dueDate?: number;
   tags?: string[];
