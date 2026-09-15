@@ -9,6 +9,7 @@
 // - Responsive Design (Адаптивный дизайн): подстройка интерфейса под разные Viewport.
 // ==============================================================================
 
+@use 'sass:list';
 @use 'functions' as fn;
 @use 'variables' as vars;
 
@@ -70,7 +71,7 @@
 /// @param {String} $scale-key - ключ из шкалы $scales ('press-subtle', 'press-base', 'press-deep')
 /// @param {Arglist} $extra-transitions... - дополнительные переходы, объединяемые в единый список 'transition'
 @mixin gpu-press($scale-key: 'press-base', $extra-transitions...) {
-  @if length($extra-transitions) > 0 {
+  @if list.length($extra-transitions) > 0 {
     transition: transform vars.$duration-fast vars.$ease-out-smooth, $extra-transitions;
   } @else {
     transition: transform vars.$duration-fast vars.$ease-out-smooth;

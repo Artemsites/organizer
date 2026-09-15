@@ -26,6 +26,21 @@
   flex: 1;
 }
 
+.todo-app__select {
+  width: auto;
+  cursor: pointer;
+}
+
+.todo-app__error-notice {
+  padding-block: 8px;
+  padding-inline: 14px;
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: radius('sm');
+  color: #fca5a5;
+  font-size: fs('sm');
+}
+
 .todo-app__filters {
   display: flex;
   gap: 8px;
@@ -104,6 +119,31 @@
 .todo-app__text {
   flex: 1;
   font-size: fs('base');
+}
+
+.todo-app__priority {
+  font-size: fs('xs');
+  padding-block: 2px;
+  padding-inline: 8px;
+  border-radius: radius('full');
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05ch;
+}
+
+.todo-app__priority--low {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+}
+
+.todo-app__priority--medium {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+}
+
+.todo-app__priority--high {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
 }
 
 .todo-app__delete-btn {
