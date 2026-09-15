@@ -13,6 +13,12 @@
     "cli:dev": "npm --prefix cli run dev",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm run build --workspace=@organizer/web",
-    "build": "npm run --workspaces --if-present build"
+    "build": "npm run --workspaces --if-present build",
+    "test": "npm run --workspaces --if-present test",
+    "test:web": "npm run test --workspace=@organizer/web",
+    "test:server": "npm run test --workspace=@organizer/server"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.14.5"
   }
 }
