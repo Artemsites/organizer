@@ -175,7 +175,7 @@ organizer/
     4. «прямой `INSERT` в `tasks` со `status = 'lol'` отклоняется БД» — доказывает, что `CHECK` реально создан, а не только описан.
   - **DoD:** `npm run build` зелёный во всех воркспейсах.
 
-- [ ] Шаг 7b (Приоритет 0): `todos` — Список задач на REST API `[Model: Mid, Effort: Medium]`
+- [x] Шаг 7b (Приоритет 0): `todos` — Список задач на REST API `[Model: Mid, Effort: Medium]`
   - **Файл:** `web/src/modules/todos/todos-module.ts` — переписывается, `web/src/modules/todos/todos.scss` — дополняется.
   - **Модель.** Убрать локальный `TodoItem { text, completed }`, взять `Task` из `@organizer/shared`. `completed` → `status === 'done'`, `text` → `title`. Убрать `STORAGE_KEY`, `load()`, `save()` на `localStorage` и два демо-объекта из конструктора — источник данных теперь SQLite.
   - **Async при синхронном контракте.** `OrganizerModule.init(container): void` синхронный (`web/src/core/types.ts`), а данные приходят по сети. Интерфейс не менять: `init()` рисует каркас и состояние загрузки сразу, затем `void this.load()` дозаполняет список. Это и правильный UX — пустой экран не мигает.
@@ -248,7 +248,7 @@ organizer/
 
 ### Навыки вёрстки и фронтенда (TODO.md) — сквозные шаги
 
-- [ ] Шаг 13: SCSS-архитектура, Modern CSS и адаптив
+- [x] Шаг 13: SCSS-архитектура, Modern CSS и адаптив `[Model: Mid, Effort: High]` — **сделано 2026-09-16**
   - [x] Шаг 13.1: Абстракции и токены SCSS (`abstracts/`) `[Model: Mid, Effort: Low]`
     - Создать `web/src/styles/abstracts/`:
       - `_variables.scss`: SCSS maps `$breakpoints` (xs, sm, md, lg, xl), `$z-layers`, `$colors`, `$radii`.

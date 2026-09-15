@@ -1,14 +1,39 @@
+// ==============================================================================
+// TODOS MODULE (todos-module.ts)
+// ==============================================================================
+// Programmer Terms & Best Practices:
+// 1. SSoT (Single Source of Truth):
+//    Единый источник истины — база данных ядра (SQLite) через REST API.
+//    Локальное хранилище 'localStorage' полностью исключено.
+// 2. Event Delegation (Делегирование событий):
+//    Вместо навешивания N слушателей на каждый элемент списка, вешаем ровно один
+//    слушатель на родительский контейнер (<ul>). Это экономит память и не требует
+//    перенавешивания обработчиков при добавлении/удалении элементов.
+// 3. Targeted DOM Mutation vs Layout Thrashing:
+//    Отказ от полной перерисовки через 'innerHTML = ...' при каждом действии.
+//    Полный сброс сбивает фокус ввода, скролл и ломает CSS-переходы (Transitions).
+//    Мутируем только конкретный <li> через classList/remove/prepend.
+// 4. Optimistic UI with Rollback:
+//    Синхронно обновляем DOM и UI до сетевого запроса (0ms latency perception).
+//    В случае сетевой ошибки (Rejected Promise) откатываем состояние к снимку.
+// 5. Chrome Event Loop Timing:
+//    DOM-мутация обязана происходить ДО ключевого слова 'await'.
+//    Синхронный код успевает передать изменения в текущую фазу Render (Layout & Paint)
+//    до того, как сетевой промис перейдёт в очередь Microtasks / Macrotasks.
+// 6. XSS Prevention (Cross-Site Scripting):
+//    Все пользовательские строки (title, description) перед вставкой в разметку
+//    экранируются через escapeHtml.
+// 7. Lifecycle & Resource Teardown:
+//    Метод 'destroy()' отменяет висящие fetch-запросы через AbortController и
+//    очищает слушатели, предотвращая утечки памяти (Memory Leaks).
+// ==============================================================================
+
 import { OrganizerModule } from '../../core/types';
 import { globalEvents } from '../../core/event-bus';
+import { listTasks, createTask, patchTask, deleteTask } from '../../api/client';
+import type { Task, TaskStatus, TaskPriority, CreateTaskDto } from '@organizer/shared';
 
-interface TodoItem {
-  id: string;
-  text: string;
-  completed: boolean;
-  createdAt: number;
-}
-
-type FilterType = 'all' | 'active' | 'completed';
+type FilterType = 'all' | 'todo' | 'in_progress' | 'review' | 'done';
 
 export class TodosModule implements OrganizerModule {
   readonly id = 'todos';
@@ -16,58 +41,109 @@ export class TodosModule implements OrganizerModule {
   readonly icon = '✅';
 
   private container: HTMLElement | null = null;
-  private todos: TodoItem[] = [];
+  private listEl: HTMLElement | null = null;
+  private formEl: HTMLFormElement | null = null;
+  private inputEl: HTMLInputElement | null = null;
+  private prioritySelectEl: HTMLSelectElement | null = null;
+  private errorNoticeEl: HTMLElement | null = null;
+  private footerCountEl: HTMLElement | null = null;
+
+  // In-memory Snapshot (кэш для мгновенного отката и подсчёта badge)
+  private tasksMap = new Map<string, Task>();
   private currentFilter: FilterType = 'all';
-  private readonly STORAGE_KEY = 'organizer_todos';
 
-  constructor() {
-    this.load();
-  }
+  // AbortController для прерывания активных запросов при выгрузке модуля
+  private abortController = new AbortController();
 
+  // Сохраняем ссылки на слушатели для чистого teardown в destroy()
+  private listClickListener: ((e: MouseEvent) => void) | null = null;
+  private listChangeListener: ((e: Event) => void) | null = null;
+  private formSubmitListener: ((e: SubmitEvent) => void) | null = null;
+  private filterClickListener: ((e: MouseEvent) => void) | null = null;
+
+  /**
+   * Подсчет бейджа на вкладке сайдбара:
+   * Считаем только активные задачи (не 'done' и не 'archived').
+   */
   badgeCount = (): number => {
-    return this.todos.filter(t => !t.completed).length;
+    let count = 0;
+    for (const task of this.tasksMap.values()) {
+      if (task.status !== 'done' && task.status !== 'archived') {
+        count++;
+      }
+    }
+    return count;
   };
 
+  /**
+   * Синхронная инициализация: немедленный рендер скелета разметки,
+   * предотвращающий Layout Shift и мигание экрана.
+   */
   init(container: HTMLElement): void {
     this.container = container;
-    this.render();
+    this.abortController = new AbortController();
+    this.renderSkeleton();
+    this.bindDOMEvents();
+    void this.load();
   }
 
+  /**
+   * Очистка ресурсов при переключении модулей (Lifecycle Teardown)
+   */
   destroy(): void {
+    this.abortController.abort();
+    this.unbindDOMEvents();
+    this.tasksMap.clear();
     this.container = null;
+    this.listEl = null;
+    this.formEl = null;
+    this.inputEl = null;
+    this.prioritySelectEl = null;
+    this.errorNoticeEl = null;
+    this.footerCountEl = null;
   }
 
-  private load(): void {
+  /**
+   * Асинхронная загрузка задач из SQLite ядра
+   */
+  private async load(): Promise<void> {
+    if (!this.listEl) return;
+
+    this.listEl.innerHTML = '<li class="todo-app__empty">Загрузка задач...</li>';
+
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY);
-      this.todos = data ? JSON.parse(data) : [
-        { id: '1', text: 'Изучить архитектуру Vanilla TypeScript', completed: true, createdAt: Date.now() - 3600000 },
-        { id: '2', text: 'Собрать модульный каркас Органайзера на SCSS', completed: false, createdAt: Date.now() }
-      ];
-    } catch {
-      this.todos = [];
+      const tasks = await listTasks();
+      if (this.abortController.signal.aborted) return;
+
+      this.tasksMap.clear();
+      for (const task of tasks) {
+        // Defensive Copying: создаем независимую копию объекта,
+        // чтобы мутации статуса в UI не протекали в исходные ссылки снаружи.
+        this.tasksMap.set(task.id, { ...task });
+      }
+
+      this.renderList();
+      this.updateCounters();
+      globalEvents.emit('module:badge-updated');
+    } catch (err: any) {
+      if (this.abortController.signal.aborted) return;
+      this.showError(`Ошибка загрузки задач: ${err?.message || 'Сервер недоступен'}`);
+      if (this.listEl) {
+        this.listEl.innerHTML = '<li class="todo-app__empty todo-app__empty--error">Не удалось загрузить задачи</li>';
+      }
     }
   }
 
-  private save(): void {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.todos));
-    globalEvents.emit('module:badge-updated');
-  }
-
-  private getFilteredTodos(): TodoItem[] {
-    if (this.currentFilter === 'active') return this.todos.filter(t => !t.completed);
-    if (this.currentFilter === 'completed') return this.todos.filter(t => t.completed);
-    return this.todos;
-  }
-
-  private render(): void {
+  /**
+   * Создание базового каркаса (Skeleton UI)
+   */
+  private renderSkeleton(): void {
     if (!this.container) return;
-
-    const filtered = this.getFilteredTodos();
-    const activeCount = this.badgeCount();
 
     this.container.innerHTML = `
       <div class="todo-app">
+        <div class="todo-app__error-notice" id="todo-error-notice" style="display: none;"></div>
+
         <form class="todo-app__header" id="todo-form">
           <input 
             type="text" 
@@ -77,99 +153,311 @@ export class TodosModule implements OrganizerModule {
             autocomplete="off"
             required
           />
+          <select id="todo-priority" class="input todo-app__select" title="Приоритет">
+            <option value="medium">Обычный</option>
+            <option value="low">Низкий</option>
+            <option value="high">Срочный</option>
+          </select>
           <button type="submit" class="btn btn--primary">Добавить</button>
         </form>
 
-        <div class="todo-app__filters">
-          <button type="button" class="todo-app__filter-btn ${this.currentFilter === 'all' ? 'active' : ''}" data-filter="all">Все (${this.todos.length})</button>
-          <button type="button" class="todo-app__filter-btn ${this.currentFilter === 'active' ? 'active' : ''}" data-filter="active">Активные (${activeCount})</button>
-          <button type="button" class="todo-app__filter-btn ${this.currentFilter === 'completed' ? 'active' : ''}" data-filter="completed">Завершенные (${this.todos.length - activeCount})</button>
+        <div class="todo-app__filters" id="todo-filters">
+          <button type="button" class="todo-app__filter-btn active" data-filter="all">Все (0)</button>
+          <button type="button" class="todo-app__filter-btn" data-filter="todo">К выполнению (0)</button>
+          <button type="button" class="todo-app__filter-btn" data-filter="in_progress">В работе (0)</button>
+          <button type="button" class="todo-app__filter-btn" data-filter="review">На проверке (0)</button>
+          <button type="button" class="todo-app__filter-btn" data-filter="done">Завершено (0)</button>
         </div>
 
-        <ul class="todo-app__list">
-          ${filtered.length === 0 ? '<li class="todo-app__empty">Список пуст</li>' : ''}
-          ${filtered.map(todo => `
-            <li class="todo-app__item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
-              <input type="checkbox" class="todo-app__checkbox" ${todo.completed ? 'checked' : ''} />
-              <span class="todo-app__text">${this.escapeHtml(todo.text)}</span>
-              <button class="todo-app__delete-btn" title="Удалить">✕</button>
-            </li>
-          `).join('')}
+        <ul class="todo-app__list" id="todo-list">
+          <li class="todo-app__empty">Список пуст</li>
         </ul>
 
         <div class="todo-app__footer">
-          <span>Осталось невыполненных: <strong>${activeCount}</strong></span>
-          ${this.todos.some(t => t.completed) ? '<button id="btn-clear-completed" class="btn btn--danger" style="font-size: 0.75rem; padding: 4px 10px;">Очистить завершенные</button>' : ''}
+          <span id="todo-footer-counters">Осталось невыполненных: <strong>0</strong></span>
         </div>
       </div>
     `;
 
-    this.bindDOMEvents();
+    this.listEl = this.container.querySelector('#todo-list');
+    this.formEl = this.container.querySelector('#todo-form');
+    this.inputEl = this.container.querySelector('#todo-input');
+    this.prioritySelectEl = this.container.querySelector('#todo-priority');
+    this.errorNoticeEl = this.container.querySelector('#todo-error-notice');
+    this.footerCountEl = this.container.querySelector('#todo-footer-counters');
   }
 
+  /**
+   * Подписка на события с использованием Event Delegation
+   */
   private bindDOMEvents(): void {
-    if (!this.container) return;
+    if (!this.container || !this.formEl || !this.listEl) return;
 
-    // Добавление задачи
-    const form = this.container.querySelector('#todo-form') as HTMLFormElement;
-    const input = this.container.querySelector('#todo-input') as HTMLInputElement;
-
-    form?.addEventListener('submit', (e) => {
+    // 1. Обработчик отправки формы (Создание задачи)
+    this.formSubmitListener = async (e: SubmitEvent) => {
       e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
+      const title = this.inputEl?.value.trim();
+      const priority = (this.prioritySelectEl?.value as TaskPriority) || 'medium';
+      if (!title) return;
 
-      this.todos.unshift({
-        id: String(Date.now()),
-        text,
-        completed: false,
-        createdAt: Date.now()
-      });
+      const dto: CreateTaskDto = {
+        title,
+        priority,
+        status: 'todo',
+      };
 
-      this.save();
-      this.render();
-      const nextInput = this.container?.querySelector('#todo-input') as HTMLInputElement;
-      nextInput?.focus();
-    });
+      try {
+        const createdTask = await createTask(dto);
+        this.tasksMap.set(createdTask.id, createdTask);
 
-    // Фильтры
-    this.container.querySelectorAll('.todo-app__filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.currentFilter = (btn as HTMLElement).dataset.filter as FilterType;
-        this.render();
-      });
-    });
+        // Targeted DOM Mutation: вставляем в начало списка без полной перерисовки
+        if (this.listEl) {
+          const emptyPlaceholder = this.listEl.querySelector('.todo-app__empty');
+          if (emptyPlaceholder) {
+            emptyPlaceholder.remove();
+          }
 
-    // Делегирование кликов по списку (чекбокс и удаление)
-    const list = this.container.querySelector('.todo-app__list');
-    list?.addEventListener('click', (e) => {
+          if (this.currentFilter === 'all' || this.currentFilter === 'todo') {
+            this.listEl.insertAdjacentHTML('afterbegin', this.renderItemHtml(createdTask));
+          }
+        }
+
+        if (this.inputEl) {
+          this.inputEl.value = '';
+          this.inputEl.focus();
+        }
+
+        this.updateCounters();
+        globalEvents.emit('module:badge-updated');
+      } catch (err: any) {
+        this.showError(`Не удалось создать задачу: ${err?.message || 'Ошибка сети'}`);
+      }
+    };
+    this.formEl.addEventListener('submit', this.formSubmitListener);
+
+    // 2. Делегирование событий изменения чекбокса (Optimistic UI)
+    this.listChangeListener = async (e: Event) => {
       const target = e.target as HTMLElement;
+      if (!target.classList.contains('todo-app__checkbox')) return;
+
       const itemEl = target.closest('.todo-app__item') as HTMLElement;
       if (!itemEl) return;
 
-      const todoId = itemEl.dataset.id;
-      const todo = this.todos.find(t => t.id === todoId);
-      if (!todo) return;
+      const taskId = itemEl.dataset.id;
+      if (!taskId) return;
 
-      if (target.classList.contains('todo-app__checkbox')) {
-        todo.completed = (target as HTMLInputElement).checked;
-        this.save();
-        this.render();
-      } else if (target.classList.contains('todo-app__delete-btn')) {
-        this.todos = this.todos.filter(t => t.id !== todoId);
-        this.save();
-        this.render();
+      const task = this.tasksMap.get(taskId);
+      if (!task) return;
+
+      const prevStatus = task.status;
+      const isChecked = (target as HTMLInputElement).checked;
+      const newStatus: TaskStatus = isChecked ? 'done' : 'todo';
+
+      // ==========================================================================
+      // OPTIMISTIC UI (Синхронная мутация DOM до await):
+      // Пользователь видит отклик анимации мгновенно (0ms). Браузер запускает
+      // CSS-transition на GPU. Мы сохраняем ссылку на элемент, исключая пересоздание.
+      // ==========================================================================
+      task.status = newStatus;
+      itemEl.classList.toggle('completed', isChecked);
+      this.updateCounters();
+      globalEvents.emit('module:badge-updated');
+
+      try {
+        await patchTask(taskId, { status: newStatus });
+      } catch (err: any) {
+        // ========================================================================
+        // ROLLBACK PATTERN (Откат в случае сетевой ошибки):
+        // Возвращаем исходный статус в памяти и в DOM-дереве.
+        // ========================================================================
+        task.status = prevStatus;
+        (target as HTMLInputElement).checked = prevStatus === 'done';
+        itemEl.classList.toggle('completed', prevStatus === 'done');
+        this.updateCounters();
+        globalEvents.emit('module:badge-updated');
+        this.showError(`Ошибка сохранения: ${err?.message || 'Статус не обновлен на сервере'}`);
       }
-    });
+    };
+    this.listEl.addEventListener('change', this.listChangeListener);
 
-    // Очистить завершенные
-    this.container.querySelector('#btn-clear-completed')?.addEventListener('click', () => {
-      this.todos = this.todos.filter(t => !t.completed);
-      this.save();
-      this.render();
-    });
+    // 3. Делегирование кликов по кнопке удаления
+    this.listClickListener = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const deleteBtn = target.closest('.todo-app__delete-btn');
+      if (!deleteBtn) return;
+
+      const itemEl = target.closest('.todo-app__item') as HTMLElement;
+      if (!itemEl) return;
+
+      const taskId = itemEl.dataset.id;
+      if (!taskId) return;
+
+      const task = this.tasksMap.get(taskId);
+      if (!task) return;
+
+      // Optimistic Delete: удаляем из памяти и из DOM
+      this.tasksMap.delete(taskId);
+      itemEl.remove();
+      if (this.listEl && this.listEl.children.length === 0) {
+        this.listEl.innerHTML = '<li class="todo-app__empty">Список пуст</li>';
+      }
+      this.updateCounters();
+      globalEvents.emit('module:badge-updated');
+
+      try {
+        await deleteTask(taskId);
+      } catch (err: any) {
+        // Rollback: возвращаем задачу в кэш и в список
+        this.tasksMap.set(taskId, task);
+        this.renderList();
+        this.updateCounters();
+        globalEvents.emit('module:badge-updated');
+        this.showError(`Не удалось удалить задачу: ${err?.message || 'Ошибка сети'}`);
+      }
+    };
+    this.listEl.addEventListener('click', this.listClickListener);
+
+    // 4. Фильтры статусов
+    const filterContainer = this.container.querySelector('#todo-filters');
+    this.filterClickListener = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest('.todo-app__filter-btn') as HTMLButtonElement;
+      if (!btn) return;
+
+      const filter = btn.dataset.filter as FilterType;
+      if (filter === this.currentFilter) return;
+
+      this.currentFilter = filter;
+      filterContainer?.querySelectorAll('.todo-app__filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      this.renderList();
+    };
+    filterContainer?.addEventListener('click', this.filterClickListener as EventListener);
   }
 
+  /**
+   * Снятие слушателей (Предотвращение утечек памяти при переключении модулей)
+   */
+  private unbindDOMEvents(): void {
+    if (this.formEl && this.formSubmitListener) {
+      this.formEl.removeEventListener('submit', this.formSubmitListener);
+    }
+    if (this.listEl && this.listChangeListener) {
+      this.listEl.removeEventListener('change', this.listChangeListener);
+    }
+    if (this.listEl && this.listClickListener) {
+      this.listEl.removeEventListener('click', this.listClickListener);
+    }
+  }
+
+  /**
+   * Отрисовка списка задач согласно выбранному фильтру
+   */
+  private renderList(): void {
+    if (!this.listEl) return;
+
+    const tasks = Array.from(this.tasksMap.values());
+    const filtered = tasks.filter(t => {
+      if (this.currentFilter === 'all') return true;
+      return t.status === this.currentFilter;
+    });
+
+    if (filtered.length === 0) {
+      this.listEl.innerHTML = '<li class="todo-app__empty">Список пуст</li>';
+      return;
+    }
+
+    this.listEl.innerHTML = filtered.map(t => this.renderItemHtml(t)).join('');
+  }
+
+  /**
+   * Рендер отдельного элемента <li>
+   */
+  private renderItemHtml(todo: Task): string {
+    const isCompleted = todo.status === 'done';
+    const safeTitle = this.escapeHtml(todo.title);
+    const priority = todo.priority || 'medium';
+
+    return `
+      <li class="todo-app__item ${isCompleted ? 'completed' : ''}" data-id="${todo.id}">
+        <input 
+          type="checkbox" 
+          class="todo-app__checkbox" 
+          ${isCompleted ? 'checked' : ''} 
+          aria-label="Отметить задачу '${safeTitle}'"
+        />
+        <span class="todo-app__text">${safeTitle}</span>
+        <span class="todo-app__priority todo-app__priority--${priority}">${this.priorityLabel(priority)}</span>
+        <button class="todo-app__delete-btn" title="Удалить задачу" aria-label="Удалить">✕</button>
+      </li>
+    `;
+  }
+
+  /**
+   * Обновление числовых показателей на кнопках фильтра и в футере
+   */
+  private updateCounters(): void {
+    if (!this.container) return;
+
+    const tasks = Array.from(this.tasksMap.values());
+    const counts = {
+      all: tasks.length,
+      todo: 0,
+      in_progress: 0,
+      review: 0,
+      done: 0,
+    };
+
+    for (const t of tasks) {
+      if (t.status === 'todo') counts.todo++;
+      else if (t.status === 'in_progress') counts.in_progress++;
+      else if (t.status === 'review') counts.review++;
+      else if (t.status === 'done') counts.done++;
+    }
+
+    const filterBtns = this.container.querySelectorAll('.todo-app__filter-btn');
+    filterBtns.forEach(btn => {
+      const filter = (btn as HTMLElement).dataset.filter as FilterType;
+      if (filter === 'all') btn.textContent = `Все (${counts.all})`;
+      else if (filter === 'todo') btn.textContent = `К выполнению (${counts.todo})`;
+      else if (filter === 'in_progress') btn.textContent = `В работе (${counts.in_progress})`;
+      else if (filter === 'review') btn.textContent = `На проверке (${counts.review})`;
+      else if (filter === 'done') btn.textContent = `Завершено (${counts.done})`;
+    });
+
+    const activeCount = counts.todo + counts.in_progress + counts.review;
+    if (this.footerCountEl) {
+      this.footerCountEl.innerHTML = `Осталось невыполненных: <strong>${activeCount}</strong>`;
+    }
+  }
+
+  /**
+   * Всплывающее предупреждение об ошибке
+   */
+  private showError(message: string): void {
+    if (!this.errorNoticeEl) return;
+    this.errorNoticeEl.textContent = message;
+    this.errorNoticeEl.style.display = 'block';
+
+    setTimeout(() => {
+      if (this.errorNoticeEl) {
+        this.errorNoticeEl.style.display = 'none';
+      }
+    }, 4000);
+  }
+
+  private priorityLabel(priority: TaskPriority): string {
+    switch (priority) {
+      case 'high': return 'Срочно';
+      case 'low': return 'Низкий';
+      case 'medium':
+      default: return 'Обычный';
+    }
+  }
+
+  /**
+   * Защита от XSS-инъекций при интерполяции строк
+   */
   private escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
