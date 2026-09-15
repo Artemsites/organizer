@@ -155,7 +155,7 @@ organizer/
 
 ### Модули (приоритеты spec.md §2)
 
-- [ ] Шаг 7a (Приоритет 0): Контракт задач end-to-end `[Model: Mid, Effort: Low]`
+- [x] Шаг 7a (Приоритет 0): Контракт задач end-to-end `[Model: Mid, Effort: Low]` — **сделано 2026-09-15**
   - **Цель:** один тип `Task` на все три пакета, чтобы Шаг 7b не изобретал свою модель.
   - **`shared/src/models.ts:3`:** `TaskStatus` сейчас `'todo' | 'in_progress' | 'done' | 'archived'` — 4 значения из 6. Привести к spec.md §2: `'backlog' | 'todo' | 'in_progress' | 'review' | 'done' | 'archived'`.
   - **`server/src/db/schema.ts`:** добавить в таблицу `tasks` `CHECK (status IN (...))` и `CHECK (priority IN (...))`. Это защита на уровне БД, дешевле любой проверки в коде. Таблица создаётся через `CREATE TABLE IF NOT EXISTS` — на существующей базе `CHECK` не появится; нужен либо снос локального `organizer.db` (данных ещё нет), либо миграция. Выбрать снос и записать решение в `memory.md`.
