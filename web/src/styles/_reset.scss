@@ -1,4 +1,4 @@
-@use 'variables' as *;
+@use 'abstracts' as *;
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -8,8 +8,8 @@
 
 body {
   font-family: $font-sans;
-  background-color: $color-bg;
-  color: $color-text;
+  background-color: color('bg');
+  color: color('text');
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

@@ -23,7 +23,7 @@ export class AppShell {
       <div class="app-shell">
         <aside class="sidebar">
           <div class="sidebar__brand">
-            <span class="brand-icon">⚡</span>
+            <span class="brand-icon sidebar__brand-icon">⚡</span>
             <span>Органайзер</span>
           </div>
           <nav class="sidebar__nav" id="sidebar-nav"></nav>
@@ -67,9 +67,9 @@ export class AppShell {
     item.className = 'sidebar__item';
     item.dataset.moduleId = module.id;
     item.innerHTML = `
-      <span class="item-icon">${module.icon}</span>
-      <span class="item-title">${module.title}</span>
-      <span class="badge" id="badge-${module.id}"></span>
+      <span class="item-icon sidebar__item-icon">${module.icon}</span>
+      <span class="item-title sidebar__item-title">${module.title}</span>
+      <span class="badge sidebar__badge" id="badge-${module.id}"></span>
     `;
 
     item.addEventListener('click', () => {
