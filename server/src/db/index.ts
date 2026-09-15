@@ -107,7 +107,8 @@ export class Database {
       id: randomUUID(),
       title: dto.title,
       description: dto.description,
-      status: (dto as { status?: Task['status'] }).status || 'todo',
+      // Нет статуса в DTO → backlog: задача рождается как идея (spec.md §2), в todo её двигает человек.
+      status: dto.status ?? 'backlog',
       priority: dto.priority || 'medium',
       dueDate: dto.dueDate,
       tags: dto.tags || [],

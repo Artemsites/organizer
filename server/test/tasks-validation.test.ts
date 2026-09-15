@@ -131,7 +131,7 @@ describe('Organizer Server: Tasks Input Validation & Sanitization (Шаг 7.0.2)
     // 3. Проверяем целостность данных в БД: статус не изменился
     const afterFetch = server.db.getTaskById(initial.id);
     expect(afterFetch).not.toBeNull();
-    expect(afterFetch?.status).toBe('todo');
+    expect(afterFetch?.status).toBe('backlog');
     expect(afterFetch?.updatedAt).toBe(initial.updatedAt);
   });
 

@@ -23,7 +23,7 @@ describe('Organizer Server: Database CRUD', () => {
 
     expect(task.id).toBeDefined();
     expect(task.title).toBe('Купить хлеб');
-    expect(task.status).toBe('todo');
+    expect(task.status).toBe('backlog');
     expect(task.priority).toBe('high');
     expect(task.tags).toEqual(['быт', 'покупки']);
 
