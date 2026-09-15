@@ -243,12 +243,32 @@ organizer/
 
 ### Навыки вёрстки и фронтенда (TODO.md) — сквозные шаги
 
-- [ ] Шаг 13: SCSS-архитектура и адаптив `[Model: Mid, Effort: Medium]` — ⛔ требует планирования Pro
-  - Сейчас: 3 плоских файла, ноль `@mixin`, ноль `@forward`, ноль `@media` — половина навыков из TODO.md не практикуется нигде в плане.
-  - Разложить `web/src/styles/`: `abstracts/` (токены в SCSS-map, функции, миксины) + `base/` + `components/`, публичный вход через `@forward`.
-  - Карта брейкпоинтов (`$breakpoints` map) + миксин `respond-to($key)` с `@content` — 4–5 брейкпоинтов, одна точка правды. Нужен до Шагов 10 и 11, иначе адаптив канбана и календаря пишется дважды.
-  - Токены продублировать в CSS custom properties — тема переключается без пересборки.
-  - DoD: ни одного «голого» `@media` в модулях; смена брейкпоинта правится в одном файле.
+- [ ] Шаг 13: SCSS-архитектура, Modern CSS и адаптив
+  - [x] Шаг 13.1: Абстракции и токены SCSS (`abstracts/`) `[Model: Mid, Effort: Low]`
+    - Создать `web/src/styles/abstracts/`:
+      - `_variables.scss`: SCSS maps `$breakpoints` (xs, sm, md, lg, xl), `$z-layers`, `$colors`, `$radii`.
+      - `_functions.scss`: функции-геттеры с валидацией (`z($layer)`, `bp($key)`) через `sass:map`.
+      - `_mixins.scss`: миксин `respond-to($bp)` с блоком `@content`, `hardware-accel`, `text-truncate`.
+      - `_index.scss`: публичный фасад слоя через `@forward`.
+    - DoD: компиляция SCSS без ошибок, вызов `@include respond-to('md') { ... }` генерирует валидный `@media (min-width: 768px)`.
+  - [ ] Шаг 13.2: Слой `base/` и CSS Custom Properties `[Model: Mid, Effort: Low]`
+    - Создать `web/src/styles/base/`:
+      - `_root.scss`: объявление дизайн-токенов в CSS Custom Properties (`--color-bg`, `--color-surface`, `--color-primary`, etc.) для поддержки рантайм-тем без пересборки.
+      - `_reset.scss`: перенос и дополнение современного CSS-reset (box-sizing, text-rendering, font smoothing).
+      - `_index.scss`: публичный экспорт слоя через `@forward`.
+    - DoD: цвета и радиусы в браузере считываются через `var(--...)`.
+  - [ ] Шаг 13.3: Лейаут, адаптив и Logical Properties `[Model: Mid, Effort: Medium]`
+    - Выделить лейаут в `web/src/styles/components/_app-shell.scss`.
+    - Перевести лейаут на CSS Logical Properties: `padding-inline`, `padding-block`, `margin-block`, `border-inline-end`.
+    - Реализовать адаптив: на мобильных (`< 768px`) сайдбар переходит в компактный режим / скрываемое меню с помощью `respond-to('md')`.
+    - Никаких «голых» `@media` — только миксин `respond-to`.
+    - DoD: при смене размера окна сетка адаптируется без горизонтального скролла; инспекция показывает `margin-inline`/`padding-block`.
+  - [ ] Шаг 13.4: UI-компоненты, `clip-path` и 60fps-анимации `[Model: Mid, Effort: Medium]`
+    - Выделить общие стили кнопок, инпутов и карточек в `web/src/styles/components/` (`_button.scss`, `_input.scss`, `_card.scss`).
+    - Использовать `clip-path: polygon(...)` для декоративных срезанных углов карточек/бейджей.
+    - Реализовать аппаратные 60fps анимации переходов и ховеров: исключительно через `transform` и `opacity` с кастомной функцией плавности `cubic-bezier(0.16, 1, 0.3, 1)`.
+    - Адаптировать `web/src/modules/todos/todos.scss` под новую модульную систему (`@use '../../styles/abstracts' as *`).
+    - DoD: Lighthouse Performance не имеет предупреждений по Layout Thrashing / Non-composited animations; все анимации плавные.
 
 - [ ] Шаг 14: Библиотека UI-компонентов без фреймворков `[Model: Pro, Effort: Medium]` — ⛔ требует планирования Pro
   - Явно указана в TODO.md и естественно вытекает из Шагов 7b–11: кнопка, поле ввода, модалка, тост, бейдж статуса уже дублируются между модулями.
