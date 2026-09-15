@@ -1,0 +1,71 @@
+// ==============================================================================
+// BUTTON COMPONENT (_button.scss)
+// ==============================================================================
+// Best Practices & Programmer Terms:
+// 1. Paint = 0 Hover Animations (Анимации без Repaint):
+//    Вместо прямой смены 'background-color', которая триггерит растеризацию пикселей
+//    (Repaint), мы анимируем 'opacity' у абсолютного псевдоэлемента ::before.
+//    Изменение прозрачности выполняется исключительно силами GPU Compositor.
+// 2. Tactile Feedback (Тактильный отклик):
+//    Нажатие :active анимируется через 'transform: scale(0.97)' на GPU, создавая
+//    физическое ощущение нажатия кнопки без изменения геометрии соседних элементов.
+// 3. Stacking Context Isolation ('isolation: isolate'):
+//    Изолирует контекст наложения псевдоэлемента ::before (z-index: -1) внутри кнопки,
+//    не позволяя ему провалиться под фон родительской карточки или контейнера.
+// 4. Zero Nesting BEM:
+//    Все модификаторы написаны плоско (.btn--primary, .btn--danger).
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  min-height: 38px;
+  border-radius: radius('sm');
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: fs('sm');
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  @include hardware-accel;
+  @include gpu-press('press-base', border-color $transition-base);
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.btn--primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  @include gpu-hover-fade(var(--color-primary-hover));
+}
+
+.btn--danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.35);
+  @include gpu-hover-fade(var(--color-danger));
+
+  &:hover {
+    color: #ffffff;
+    border-color: transparent;
+  }
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  @include gpu-hover-fade(var(--color-surface-hover));
+
+  &:hover {
+    color: var(--color-text);
+  }
+}

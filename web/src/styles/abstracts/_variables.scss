@@ -114,3 +114,16 @@ $duration-fast: 0.15s;
 $duration-normal: 0.25s;
 $duration-slow: 0.4s;
 $transition-base: $duration-normal $ease-out-smooth;
+
+// Interactive Scales Map (Шкала тактильного сжатия :active без магических чисел)
+$scales: (
+  'press-subtle': 0.98, // Крупные карточки, фильтры
+  'press-base':   0.96, // Стандартные кнопки
+  'press-deep':   0.90  // Мелкие кнопки, иконки удаления
+);
+
+// GPU Motion Shifts (Сдвиги при наведении)
+$shifts: (
+  'hover-x': 3px,  // Горизонтальный сдвиг элементов списка
+  'lift-y': -2px   // Вертикальный подъем карточек
+);

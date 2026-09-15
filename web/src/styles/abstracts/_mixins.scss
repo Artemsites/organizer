@@ -69,3 +69,94 @@
   align-items: center;
   justify-content: center;
 }
+
+// ==============================================================================
+// GPU RENDERING & INTERACTION MIXINS (Библиотека безопасного GPU-рендеринга)
+// ==============================================================================
+// Best Practices:
+// 1. Кодификация правил: разработчик не держит в голове тонкости Compositor/GPU.
+// 2. Исключение магических чисел: все значения берутся из шкал $scales, $shifts, $shadows.
+// 3. Paint = 0: анимации используют только свойства transform и opacity.
+// ==============================================================================
+
+/// Тактильный отклик при нажатии (:active) без изменения геометрии соседних элементов
+/// Best Practice: Предотвращение 'CSS Shorthand Clobbering' (затирания свойств переходов).
+/// В CSS шортхэнд 'transition' полностью перезаписывает предыдущие объявления transition на селекторе.
+/// Через механизм Varargs ($extra-transitions...) миксин бесшовно объединяет анимацию
+/// 'transform' с любыми сопутствующими переходами элемента (color, background, border-color и т.д.).
+///
+/// Programmer Terms:
+/// - Varargs (Variable Arguments / rest arguments): приём произвольного числа аргументов в SCSS через '...'.
+/// - CSS Shorthand Clobbering: коллизия, когда объявление составного свойства (shorthand) стирает ранее объявленные подсвойства.
+///
+/// Пример использования:
+/// @include gpu-press('press-subtle', color $transition-base, background-color $transition-base);
+///
+/// @param {String} $scale-key - ключ из шкалы $scales ('press-subtle', 'press-base', 'press-deep')
+/// @param {Arglist} $extra-transitions... - дополнительные переходы, объединяемые в единый список 'transition'
+@mixin gpu-press($scale-key: 'press-base', $extra-transitions...) {
+  @if length($extra-transitions) > 0 {
+    transition: transform vars.$duration-fast vars.$ease-out-smooth, $extra-transitions;
+  } @else {
+    transition: transform vars.$duration-fast vars.$ease-out-smooth;
+  }
+
+  &:active {
+    transform: scale(fn.scale($scale-key));
+  }
+}
+
+/// Анимация цвета фона при ховере без перерисовки (Paint = 0)
+/// Создает псевдоэлемент ::before на отдельном контексте наложения (isolation: isolate)
+/// и анимирует исключительно прозрачность (opacity) силами GPU.
+/// @param {Color|String} $hover-bg - целевой цвет фона при наведении
+@mixin gpu-hover-fade($hover-bg) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: $hover-bg;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity vars.$transition-base;
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+/// Аппаратный подъем элемента по оси Y при наведении (Elevated Card Hover)
+/// @param {String} $distance-key - ключ из шкалы $shifts ('lift-y')
+/// @param {String} $shadow-key - ключ из шкалы $shadows ('sm', 'md', 'lg')
+@mixin gpu-hover-lift($distance-key: 'lift-y', $shadow-key: 'md') {
+  @include hardware-accel;
+  transition: transform vars.$duration-normal vars.$ease-out-smooth, box-shadow vars.$duration-normal vars.$ease-out-smooth;
+
+  &:hover {
+    transform: translateY(fn.shift($distance-key));
+    box-shadow: fn.shadow($shadow-key);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+/// Безопасная полноэкранная подложка без Layer Over-Promotion (VRAM Bloat)
+/// Не форсирует 3D-слой на весь экран, использует visibility: hidden для исключения из дерева рендера.
+/// @param {Color|String} $bg - цвет подложки
+@mixin gpu-overlay($bg: rgba(0, 0, 0, 0.5)) {
+  position: fixed;
+  inset: 0;
+  background: $bg;
+  z-index: fn.z('sticky');
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity vars.$transition-base, visibility vars.$transition-base;
+}

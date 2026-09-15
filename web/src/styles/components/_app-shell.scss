@@ -52,14 +52,7 @@
 // 3. 'visibility: hidden': исключает невидимый оверлей из дерева отрисовки браузера,
 //    предотвращая холостую нагрузку на GPU-композитор, пока меню закрыто.
 .sidebar__backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: z('sticky');
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity $transition-base, visibility $transition-base;
+  @include gpu-overlay;
 
   @include min-bp('md') {
     display: none;

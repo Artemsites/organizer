@@ -80,15 +80,33 @@
   1. Лейаут выделен в компонент `web/src/styles/components/_app-shell.scss` с фасадом `components/_index.scss`.
   2. Все отступы и границы переведены на CSS Logical Properties (`padding-inline/block`, `margin-inline/block`, `inset-block`, `inset-inline-start`, `border-inline-end`).
   3. Реализован Mobile-First Off-Canvas Drawer: на экранах `< 768px` сайдбар скрыт за левым краем (`transform: translateX(-100%)`) с аппаратным ускорением GPU (`@include hardware-accel`), открывается по клику на гамбургер-кнопку (минимальная зона тача 44x44px по гайдлайнам UX) и выводит полупрозрачный бэкдроп (`.sidebar__backdrop`).
-  4. На десктопе (`@include respond-to('md')`) сайдбар автоматически встает в нормальный поток двухколоночной сетки, кнопка меню и оверлей скрываются (`display: none`).
+  4. На десктопе (`@include min-bp('md')`) сайдбар автоматически встает в нормальный поток двухколоночной сетки, кнопка меню и оверлей скрываются (`display: none`).
   5. Поддержана доступность (a11y): атрибуты `aria-expanded`, `aria-label`, `aria-controls`, закрытие по клавише `Escape`, клику на подложку и автоматическое закрытие при переходе между модулями.
 - **Причина**: Полноценный адаптив без сторонних библиотек, соблюдение принципов Mobile-First, Zero Nesting BEM и 60 FPS производительности.
 
+### 2026-09-16: Слой компонентов, 60fps-анимации и clip-path
+- **Проблема**: Стили кнопок, инпутов и карточек были объявлены в `main.scss`. Ховеры меняли `background-color`, триггеря Repaint. Отсутствовали декоративные элементы со срезанными углами на чистом CSS.
+- **Решение**:
+  1. Созданы компоненты `_button.scss`, `_input.scss`, `_card.scss` в `web/src/styles/components/` с фасадом `_index.scss`. `main.scss` очищен до чистой сборки слоёв (`abstracts`, `base`, `components`).
+  2. Ховер кнопок переведён на `Paint = 0`: анимация `opacity` у псевдоэлемента `::before` (Compositor-only) с тактильным откликом `:active { transform: scale(0.97) }`.
+  3. В карточках (`.card--chamfered`) реализованы срезанные углы через `clip-path: polygon(...)`, компилируемый на GPU без перерисовки контуров границ.
+  4. В `todos.scss` внедрены аппаратные микро-сдвиги `transform: translateX(3px)` и плавный `opacity: 0.55` при завершении задачи.
+- **Причина**: Архитектура SCSS 7-1, исключение Repaint/Layout thrashing при взаимодействии с UI, чистый BEM без вложенности.
 
+### 2026-09-16: Токенизация интеракций и библиотека безопасных GPU-миксинов
+- **Проблема**: В компонентах плодились "магические числа" тактильного отклика (`scale(0.95)`, `scale(0.97)`, `scale(0.88)`), а правила GPU-композитинга (`isolation: isolate`, `opacity` на `::before`, `visibility: hidden` на оверлеях) приходилось писать руками, что приводило к дублированию и риску ошибок (Layer Over-Promotion, утечки VRAM).
+- **Решение**:
+  1. В `abstracts/_variables.scss` вынесены карты токенов `$scales` (`press-subtle`, `press-base`, `press-deep`) и `$shifts` (`hover-x`, `lift-y`), добавлены геттеры `scale()` и `shift()` с fail-fast валидацией в `_functions.scss`.
+  2. В `abstracts/_mixins.scss` создана библиотека типовых GPU-миксинов: `gpu-press` (тактильный отклик на GPU), `gpu-hover-fade` (ховер без Repaint через псевдоэлемент), `gpu-hover-lift` (подъем карточки на GPU) и `gpu-overlay` (полноэкранная подложка без Over-Promotion).
+  3. Компоненты (`_button.scss`, `_card.scss`, `_app-shell.scss`, `todos.scss`) переведены на вызовы этих миксинов.
+- **Причина**: Инкапсуляция правил GPU-рендеринга в единый источник правды (SSOT), полное устранение "магических чисел", декларативный чистый код компонентов.
 
-
-
-- **Причина**: AGENTS.md §обучение — термины и сокращения объясняются в комментариях к коду. Номера шагов живут в `plan.md`, не в тестах.
+### 2026-09-16: Предотвращение CSS Shorthand Clobbering в GPU-миксинах
+- **Проблема**: В `todos.scss` и `_button.scss` объявление `transition` (color, background, border-color) затиралось (clobbered) шортхэндом `transition: transform ...` внутри `@mixin gpu-press`. Кроме того, на статичной кнопке фильтра висел избыточный `@include hardware-accel`, вызывавший лишний Repaint текстуры в VRAM при смене фона ховером.
+- **Решение**:
+  1. `@mixin gpu-press` дополнен поддержкой Varargs (`$extra-transitions...`), объединяющим сопутствующие переходы с `transform` в один CSS `transition`.
+  2. Убран избыточный `hardware-accel` со статичных кнопок табов фильтра (`.todo-app__filter-btn`).
+- **Причина**: Ликвидация багов затирания CSS transitions, предотвращение Layer Over-Promotion и лишних накладных расходов VRAM.
 
 ### 2026-09-15: Статус по умолчанию — `backlog`, не `todo`
 - **Проблема**: `createTask` без `status` писал `todo`, хотя жизненный цикл в spec.md §2 начинается с `backlog`.

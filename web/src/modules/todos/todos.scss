@@ -42,7 +42,13 @@
   cursor: pointer;
   font-size: fs('sm');
   color: var(--color-text-muted);
-  transition: all $transition-base;
+  // Best Practice: Избегаем 'CSS Shorthand Clobbering' и 'Layer Over-Promotion':
+  // 1. Shorthand Clobbering: раздельные transition (например, transition: color... и внутри gpu-press
+  //    transition: transform...) затирали друг друга в CSS. Передаем сопутствующие свойства в gpu-press.
+  // 2. No Premature Layer Promotion: мы убрали постоянный 'hardware-accel' (translateZ(0)),
+  //    потому что на :hover меняется 'background-color' (требует CPU Repaint). Постоянный GPU-слой
+  //    привел бы к лишней инвалидации текстуры и расходу VRAM без пользы для 60 FPS.
+  @include gpu-press('press-subtle', color $transition-base, background-color $transition-base);
 
   &:hover {
     color: var(--color-text);
@@ -71,14 +77,16 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: radius('md');
-  transition: all $transition-base;
+  transition: transform $duration-fast $ease-out-smooth, opacity $duration-normal $ease-out-smooth, box-shadow $transition-base;
+  @include hardware-accel;
 
   &:hover {
-    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(shift('hover-x'));
+    box-shadow: shadow('sm');
   }
 
   &.completed {
-    opacity: 0.6;
+    opacity: 0.55;
 
     .todo-app__text {
       text-decoration: line-through;
@@ -107,7 +115,9 @@
   padding-block: 4px;
   padding-inline: 8px;
   border-radius: radius('sm');
-  transition: all $transition-base;
+  transition: opacity $transition-base, background-color $transition-base;
+  @include hardware-accel;
+  @include gpu-press('press-deep');
 
   &:hover {
     opacity: 1;

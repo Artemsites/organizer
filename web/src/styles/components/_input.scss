@@ -1,0 +1,47 @@
+// ==============================================================================
+// INPUT COMPONENT (_input.scss)
+// ==============================================================================
+// Best Practices & Programmer Terms:
+// 1. Accessible Focus Ring (Доступное кольцо фокуса):
+//    Использование двухслойной подсветки (outline + box-shadow) для четкого контраста
+//    в темной и светлой темах без смещения верстки (Layout Shift = 0).
+// 2. CSS Logical Properties:
+//    Отступы задаются через padding-block и padding-inline.
+// 3. Fail-Fast Placeholder Contrast:
+//    Текст плейсхолдера использует контрастный семантический токен --color-text-muted.
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+.input {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: radius('sm');
+  padding-block: 8px;
+  padding-inline: 14px;
+  min-height: 38px;
+  color: var(--color-text);
+  font-size: fs('sm');
+  line-height: 1.5;
+  transition: border-color $duration-fast $ease-out-smooth, box-shadow $duration-fast $ease-out-smooth;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.8;
+  }
+
+  &:hover {
+    border-color: var(--color-border-light);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

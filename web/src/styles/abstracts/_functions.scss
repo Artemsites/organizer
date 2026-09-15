@@ -70,4 +70,24 @@
   @return map.get(vars.$font-sizes, $size);
 }
 
+/// Получить коэффициент сжатия из шкалы scales
+/// @param {String} $size - ключ масштаба ('press-subtle', 'press-base', 'press-deep')
+/// @return {Number} числовой коэффициент (0.xx)
+@function scale($size) {
+  @if not map.has-key(vars.$scales, $size) {
+    @error "Unknown scale token '#{$size}'. Allowed tokens: #{map.keys(vars.$scales)}";
+  }
+  @return map.get(vars.$scales, $size);
+}
+
+/// Получить величину сдвига на GPU из шкалы shifts
+/// @param {String} $key - ключ сдвига ('hover-x', 'lift-y')
+/// @return {Number} значение в px
+@function shift($key) {
+  @if not map.has-key(vars.$shifts, $key) {
+    @error "Unknown shift token '#{$key}'. Allowed tokens: #{map.keys(vars.$shifts)}";
+  }
+  @return map.get(vars.$shifts, $key);
+}
+
 

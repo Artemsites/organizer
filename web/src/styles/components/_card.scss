@@ -1,0 +1,65 @@
+// ==============================================================================
+// CARD COMPONENT (_card.scss)
+// ==============================================================================
+// Best Practices & Programmer Terms:
+// 1. Hardware Accelerated Shape with 'clip-path: polygon(...)':
+//    Вместо сложной вёрстки с псевдоэлементами и SVG-масками для срезанных углов
+//    (Chamfered / Tech Corners) используем нативный 'clip-path'. Браузер компилирует
+//    полигон в вершинный шейдер на GPU, исключая перерисовку контуров (Repaint = 0).
+// 2. GPU Elevation Shift:
+//    Интерактивные карточки (.card--interactive) поднимаются по оси Y через
+//    'transform: translateY(-2px)' на отдельном слое композитора, не вызывая Reflow.
+// 3. CSS Logical Properties:
+//    Внутренние отступы задаются через padding-block и padding-inline.
+// ==============================================================================
+
+@use '../abstracts' as *;
+
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: radius('md');
+  padding-block: 16px;
+  padding-inline: 20px;
+  box-shadow: shadow('sm');
+  transition: transform $duration-normal $ease-out-smooth, box-shadow $duration-normal $ease-out-smooth;
+}
+
+// Интерактивная карточка с подъемом на GPU при ховере и тактильным откликом
+.card--interactive {
+  cursor: pointer;
+  @include gpu-hover-lift('lift-y', 'md');
+  @include gpu-press('press-subtle');
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+}
+
+// Декоративная карточка со срезанными углами (Chamfered Tech Corners)
+// Срезает верхний правый и нижний левый углы на 12px
+.card--chamfered {
+  border-radius: 0; // Сбрасываем скругление ради полигона
+  clip-path: polygon(
+    0 0,
+    calc(100% - 12px) 0,
+    100% 12px,
+    100% 100%,
+    12px 100%,
+    0 calc(100% - 12px)
+  );
+  transition: clip-path $duration-normal $ease-out-smooth, transform $duration-normal $ease-out-smooth;
+  @include hardware-accel;
+
+  &:hover {
+    // Плавная трансформация среза на GPU (увеличение скоса до 18px)
+    clip-path: polygon(
+      0 0,
+      calc(100% - 18px) 0,
+      100% 18px,
+      100% 100%,
+      18px 100%,
+      0 calc(100% - 18px)
+    );
+  }
+}
