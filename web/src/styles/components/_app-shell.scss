@@ -4,7 +4,7 @@
 // Best Practices & Programmer Concepts:
 // 1. Mobile-First Approach (Сначала мобильные):
 //    Базовые CSS-правила проектируются под экраны мобильных устройств. Расширение
-//    лейаута под десктоп выполняется строго через медиа-миксин @include min-bp('md').
+//    лейаута под десктоп выполняется строго через нативный @media (min-width: bp('md')).
 // 2. CSS Logical Properties (Логические свойства CSS):
 //    Вместо физических направлений (left/right/top/bottom) используем логические
 //    (inline/block, inset-inline-start). Это обеспечивает автоматическую поддержку
@@ -37,7 +37,7 @@
   width: 100%;
   height: 100%;
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     display: grid;
     grid-template-columns: 260px 1fr;
   }
@@ -54,7 +54,7 @@
 .sidebar__backdrop {
   @include gpu-overlay;
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     display: none;
   }
 }
@@ -65,17 +65,17 @@
   pointer-events: auto;
 }
 
-/* Боковая навигационная панель (Sidebar Drawer) */
+/* Выдвижная боковая панель (Off-Canvas Drawer / Static Desktop Sidebar) */
 .sidebar {
-  background: var(--color-surface);
-  border-inline-end: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  padding-block: 20px;
-  padding-inline: 16px;
   gap: 20px;
+  padding-block: 24px;
+  padding-inline: 18px;
+  background: var(--color-surface);
+  border-inline-end: 1px solid var(--color-border-light);
 
-  // Мобильный режим: Off-Canvas панель, скрытая за пределами экрана
+  // Мобильный режим: абсолютное перекрытие (Off-canvas Drawer)
   position: fixed;
   inset-block: 0;
   inset-inline-start: 0;
@@ -87,7 +87,7 @@
   @include hardware-accel;
 
   // Десктопный режим: статическая колонка сетки
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     position: static;
     transform: none;
     box-shadow: none;
@@ -196,7 +196,7 @@
   top: 0;
   z-index: z('sticky');
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     padding-block: 18px;
     padding-inline: 28px;
     position: static;
@@ -231,7 +231,7 @@
     color: var(--color-primary);
   }
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     display: none;
   }
 }
@@ -240,7 +240,7 @@
   font-size: fs('lg');
   font-weight: 700;
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     font-size: fs('xl');
   }
 }
@@ -250,7 +250,7 @@
   color: var(--color-text-muted);
   display: none;
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     display: block;
     font-size: fs('sm');
   }
@@ -262,7 +262,7 @@
   padding-inline: 16px;
   flex: 1;
 
-  @include min-bp('md') {
+  @media (min-width: bp('md')) {
     padding-block: 28px;
     padding-inline: 28px;
   }

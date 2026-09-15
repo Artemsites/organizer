@@ -12,38 +12,13 @@
 @use 'functions' as fn;
 @use 'variables' as vars;
 
-/// Медиа-запрос для Mobile-First подхода (min-width)
-/// Best Practice: Никаких "магических чисел" вида @media (min-width: 768px).
-/// Всегда используем семантические брейкпоинты через единую точку правды (SSOT).
-///
-/// Пример использования:
-/// .sidebar {
-///   display: none;
-///   @include min-bp('md') {
-///     display: flex;
-///   }
-/// }
-///
-/// @param {String} $breakpoint - имя брейкпоинта из $breakpoints ('sm', 'md', 'lg', etc.)
-@mixin min-bp($breakpoint) {
-  $min-width: fn.bp($breakpoint);
-
-  @media (min-width: $min-width) {
-    @content; // Сюда подставится всё тело правил, переданное в фигурных скобках
-  }
-}
-
-/// Медиа-запрос для исключений Desktop-First (max-width)
-/// Используется только когда логичнее задать стили "до определенного размера".
-/// Вычитаем 0.02px для предотвращения коллизий при субпиксельном рендеринге экранов.
-/// @param {String} $breakpoint - верхняя граница экрана
-@mixin max-bp($breakpoint) {
-  $max-width: fn.bp($breakpoint) - 0.02px;
-
-  @media (max-width: $max-width) {
-    @content;
-  }
-}
+// Best Practice (KISS & YAGNI):
+// Для адаптивных сеток используем нативный CSS: @media (min-width: fn.bp('md')).
+// Оборачивать нативный '@media' в кастомные SCSS-миксины (min-bp, max-bp) — это
+// классический оверинжиниринг (Leaky Abstraction / Unnecessary Wrapper):
+// 1. Скрывает стандартную платформу за DSL миксина.
+// 2. Ломает композицию (нельзя свободно дописать 'and (orientation: landscape)').
+// Карта $breakpoints и геттер bp() уже гарантируют SSOT и защиту от опечаток.
 
 /// Аппаратное ускорение для плавных 60 FPS / 120 FPS анимаций
 /// Best Practice: Layer Promotion (Создание композитного слоя на GPU).

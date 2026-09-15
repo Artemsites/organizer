@@ -108,6 +108,14 @@
   2. Убран избыточный `hardware-accel` со статичных кнопок табов фильтра (`.todo-app__filter-btn`).
 - **Причина**: Ликвидация багов затирания CSS transitions, предотвращение Layer Over-Promotion и лишних накладных расходов VRAM.
 
+### 2026-09-16: Устранение оверинжиниринга: отказ от миксинов min-bp/max-bp в пользу нативного @media
+- **Проблема**: Миксины `@include min-bp('md')` и `@include max-bp('md')` представляли собой избыточную абстракцию (Unnecessary Wrapper / Leaky Abstraction), которая скрывала стандартный CSS `@media`, ломала свободную композицию условий (например `and (orientation: landscape)`) и заставляла учить кастомный DSL вместо знания платформы.
+- **Решение**:
+  1. Удалены миксины `min-bp` и `max-bp` из `web/src/styles/abstracts/_mixins.scss` и из глобальных примеров `~/.agents/examples/front/scss/mixins/`.
+  2. Все медиа-запросы в `_app-shell.scss` переведены на нативный синтаксис CSS `@media (min-width: bp('md'))` с сохранением типобезопасного SSOT геттера.
+  3. Обновлены глобальные правила `AGENTS_FRONTEND.md`.
+- **Причина**: Принцип KISS & YAGNI, прямое использование возможностей платформы без лишних обёрток.
+
 ### 2026-09-15: Статус по умолчанию — `backlog`, не `todo`
 - **Проблема**: `createTask` без `status` писал `todo`, хотя жизненный цикл в spec.md §2 начинается с `backlog`.
 - **Решение**: `dto.status ?? 'backlog'` и `DEFAULT 'backlog'` в SQL. Согласовано с хозяином.
