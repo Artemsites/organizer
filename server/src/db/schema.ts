@@ -5,12 +5,15 @@ PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 -- Таблица задач (Tasks)
+-- BEST PRACTICE: Database-level Integrity Constraints (Ограничения целостности на уровне СУБД).
+-- Даже если валидация на уровне API будет обойдена (например, баг в коде, прямой скрипт или миграция),
+-- СУБД SQLite физически не позволит сохранить недопустимые значения (Defense-in-Depth / Эшелонированная защита).
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL DEFAULT 'todo',
-  priority TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'backlog' CHECK (status IN ('backlog', 'todo', 'in_progress', 'review', 'done', 'archived')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
   due_date INTEGER,
   tags TEXT,
   created_at INTEGER NOT NULL,
