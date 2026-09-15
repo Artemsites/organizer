@@ -12,6 +12,7 @@
     "server:dev": "npm --prefix server run dev",
     "cli:dev": "npm --prefix cli run dev",
     "web:dev": "npm --prefix web run dev",
+    "web:build": "npm run build --workspace=@organizer/web",
     "build": "npm run --workspaces --if-present build"
   }
 }
