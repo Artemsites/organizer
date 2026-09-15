@@ -256,7 +256,7 @@ organizer/
       - `_mixins.scss`: миксин `respond-to($bp)` с блоком `@content`, `hardware-accel`, `text-truncate`.
       - `_index.scss`: публичный фасад слоя через `@forward`.
     - DoD: компиляция SCSS без ошибок, вызов `@include respond-to('md') { ... }` генерирует валидный `@media (min-width: 768px)`.
-  - [ ] Шаг 13.2: Слой `base/` и CSS Custom Properties `[Model: Mid, Effort: Low]`
+  - [x] Шаг 13.2: Слой `base/` и CSS Custom Properties `[Model: Mid, Effort: Low]`
     - Создать `web/src/styles/base/`:
       - `_root.scss`: объявление дизайн-токенов в CSS Custom Properties (`--color-bg`, `--color-surface`, `--color-primary`, etc.) для поддержки рантайм-тем без пересборки.
       - `_reset.scss`: перенос и дополнение современного CSS-reset (box-sizing, text-rendering, font smoothing).
