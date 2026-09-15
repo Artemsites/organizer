@@ -1,68 +1,52 @@
 # Органайзер
 
+> **Статус проекта:** В активной разработке.  
+> **Готово:** ядро Fastify + SQLite (WAL) + Auth + Zod-валидация, базовая структура монорепозитория (`server`, `cli`, `web`, `shared`), каркас Web UI с модульной SCSS-архитектурой (`abstracts/`, `base/`, Design Tokens, CSS Custom Properties, Zero Nesting BEM).  
+> **В процессе:** адаптивная вёрстка интерфейса (Шаг 13.3) и сквозная связка задач с REST API (Шаг 7b).
+
 Модульный персональный органайзер задач, заметок, напоминаний и системной автоматизации. Проект спроектирован как монорепозиторий (`npm workspaces`) для отработки лучших практик архитектуры, frontend, backend и CLI-разработки без оверинжиниринга.
 
-### Архитектура и стек
-* **Ядро (`server/`)**: Fastify REST API, встроенная БД `node:sqlite` (режим WAL, zero native dependencies), cron-планировщик `croner`, строгая валидация схем через Zod.
-* **Web UI (`web/`)**: Модульный SPA на чистом DOM API + TypeScript (Vite). Модульная SCSS-архитектура (Design Tokens, шкалы типографики и брейкпоинтов, Zero Nesting BEM, 60 FPS аппаратные анимации, логические свойства), доступ к API через Vite proxy.
-* **CLI-воркер (`cli/`)**: Консольный помощник и локальный агент-воркер на macOS для фоновых задач и браузерной автоматизации (`playwright`, `zx`, `cac`).
-* **Shared (`shared/`)**: Единые TypeScript-интерфейсы, DTO и контракты ядра и клиентов.
+### Архитектура монорепозитория
+* **`server/` (Ядро)**: Fastify REST API, встроенная база данных `node:sqlite` (режим WAL, zero native dependencies), строгая валидация схем через Zod, cron-планировщик `croner`.
+* **`web/` (Web UI)**: Модульный SPA на чистом DOM API + TypeScript (сборщик Vite). Модульная SCSS-архитектура (`abstracts/`, `base/`, `components/`, Design Tokens, шкалы типографики и брейкпоинтов, Zero Nesting BEM, 60 FPS аппаратные анимации, логические свойства). Безопасный доступ к API через Vite proxy.
+* **`cli/` (Консольный клиент)**: Терминальный интерфейс управления органайзером (`cac`).
+* **`shared/` (Общий слой)**: Единые TypeScript-интерфейсы, DTO и контракты ядра и клиентов.
 
 Требования и архитектура — [spec.md](./spec.md). План работ — [plan.md](./plan.md).
 
 ## Запуск
 
-Нужен Node.js 22.5+ (проверено на 24), пакетный менеджер `npm` с workspaces.
+Требования: Node.js 22.5+ (проверено на 24), пакетный менеджер `npm`.
 
 ```bash
-npm install                 # из корня, ставит все воркспейсы
-cp .env.example .env
-openssl rand -hex 32        # сгенерировать ORGANIZER_TOKEN и вписать в .env
+npm install                 # установка зависимостей всех воркспейсов
+cp .env.example .env        # создать файл конфигурации
+openssl rand -hex 32        # сгенерировать токен и вписать в ORGANIZER_TOKEN в .env
 
-npm run server:dev          # ядро на http://127.0.0.1:3000
-npm run web:dev             # Web UI на http://localhost:5173
-npm run web:build           # сборка Web UI (tsc + vite build)
+npm run server:dev          # запуск ядра (http://127.0.0.1:3000)
+npm run web:dev             # запуск Web UI (http://localhost:5173)
+npm run web:build           # сборка Web UI в web/dist
 ```
 
-Web ходит в ядро через прокси Vite (`/api`), поэтому нужны обе команды.
+Web UI обращается к ядру через прокси Vite (`/api`), поэтому для полноценной работы запускаются и сервер, и веб-клиент.
 
 ## Конфигурация
 
-Один `.env` в корне монорепо, в `.gitignore`. Образец — `.env.example`.
+Один `.env` в корне монорепозитория (добавлен в `.gitignore`), образец — `.env.example`.
 
 | Переменная | Назначение |
 |---|---|
 | `ORGANIZER_TOKEN` | Секрет для заголовка `X-Client-Token`. Без него ядро отвечает 401 |
 | `ORGANIZER_URL` | Адрес ядра для прокси Vite. По умолчанию `http://127.0.0.1:3000` |
 
-Сервер читает `.env` нативным флагом Node `--env-file-if-exists` (см. `dev`-скрипт в `server/package.json`), Vite — через `loadEnv` с пустым префиксом. Пакет `dotenv` не используется.
-
-**Токен никогда не читать через `import.meta.env` / `VITE_*`** — Vite встраивает такие переменные в клиентский бандл, и секрет становится виден любому посетителю страницы.
+* **Безопасность:** токен никогда не считывается на клиенте через `import.meta.env` / `VITE_*` — он подставляется исключительно на сервере прокси в Node.js процессе Vite.
 
 ## Тесты
+
+Запуск тестов по воркспейсам:
 
 ```bash
 npm --prefix server run test
 npm --prefix cli run test
 npm --prefix web run test
 ```
-
-## Частые ошибки
-
-- **`curl` к локальному порту отдаёт 502.** В окружении задан глобальный `HTTP_PROXY=127.0.0.1:1080`, и `curl` идёт через него. Запускать с `NO_PROXY='*'`.
-- **`curl http://127.0.0.1:5173` молчит, а `localhost:5173` работает.** Vite dev слушает только IPv6 `[::1]`.
-- **Ядро стартует, но все запросы дают 401.** Не задан `ORGANIZER_TOKEN` в `.env`, либо `.env` не в корне монорепо.
-
-## Структура
-
-```text
-server/    ядро: Fastify REST API, node:sqlite (WAL), croner
-cli/       терминал и локальный воркер на macOS (cac, zx, playwright)
-web/       браузерный интерфейс (Vite, Vanilla TS, SCSS)
-shared/    общие типы, DTO и контракты плагинов
-plugins/   плагины (split: server + cli + web)
-```
-
-## Деплой
-
-Beget (Passenger, cron fallback) — Шаг 12 в `plan.md`, ещё не сделан. Перед ним Шаг 16: прогон тестов и линтеров плюс `rsync` по SSH. Деплой не выполняется при красном прогоне.
