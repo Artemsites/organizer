@@ -14,6 +14,12 @@
     "isolatedModules": true,
     "noEmit": true,
     "strict": true,
+    // baseUrl не ставим: deprecated в TS 6, удалён в TS 7. paths без него — только относительные ./ или ../
+    "paths": {
+      "@organizer/shared": [
+        "../shared/src/index.ts"
+      ]
+    },
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
