@@ -37,10 +37,10 @@ $z-layers: (
   'toast':    1000
 );
 
-// Semantic Color Palette (Цветовые токены)
-// Best Practice: Semantic Naming (семантические имена: primary, surface, danger)
-// вместо визуальных (blue, dark-grey). Это упрощает темизацию (Light/Dark themes).
-$colors: (
+// Theme Palettes (Палитры тем оформления)
+// Best Practice: Single Source of Truth (SSOT).
+// Все цветовые токены тем централизованно хранятся здесь в двух картах.
+$theme-dark: (
   'bg': #0f172a,
   'surface': #1e293b,
   'surface-hover': #334155,
@@ -54,6 +54,24 @@ $colors: (
   'warning': #f59e0b,
   'danger': #ef4444
 );
+
+$theme-light: (
+  'bg': #f8fafc,
+  'surface': #ffffff,
+  'surface-hover': #f1f5f9,
+  'border': #cbd5e1,
+  'border-light': rgba(0, 0, 0, 0.08),
+  'text': #0f172a,
+  'text-muted': #64748b,
+  'primary': #2563eb,
+  'primary-hover': #1d4ed8,
+  'success': #10b981,
+  'warning': #f59e0b,
+  'danger': #ef4444
+);
+
+// $colors указывает на базовую палитру (Light theme по умолчанию)
+$colors: $theme-light;
 
 // Radii Scale (Шкала скругления углов)
 $radii: (
