@@ -52,28 +52,39 @@ function statusQuery(status?: TaskStatus | readonly TaskStatus[]): string {
   return `?status=${encodeURIComponent(list.join(','))}`;
 }
 
-export async function listTasks(status?: TaskStatus | readonly TaskStatus[]): Promise<Task[]> {
-  return (await request<Task[]>(`/tasks${statusQuery(status)}`)) ?? [];
+/**
+ * Lifecycle teardown: каждый метод принимает опциональный `signal`.
+ * Модуль передаёт сюда свой `AbortController.signal`; `destroy()` делает
+ * `abort()` — и висящий `fetch` отклоняется `AbortError`, а не летит до конца.
+ * `request` уже принимает `init?: RequestInit`, `signal` — его штатное поле.
+ */
+export async function listTasks(
+  status?: TaskStatus | readonly TaskStatus[],
+  signal?: AbortSignal,
+): Promise<Task[]> {
+  return (await request<Task[]>(`/tasks${statusQuery(status)}`, { signal })) ?? [];
 }
 
-export async function createTask(dto: CreateTaskDto): Promise<Task> {
+export async function createTask(dto: CreateTaskDto, signal?: AbortSignal): Promise<Task> {
   const task = await request<Task>('/tasks', {
     method: 'POST',
     body: JSON.stringify(dto),
+    signal,
   });
   if (!task) throw new Error('Empty create response');
   return task;
 }
 
-export async function patchTask(id: string, dto: UpdateTaskDto): Promise<Task> {
+export async function patchTask(id: string, dto: UpdateTaskDto, signal?: AbortSignal): Promise<Task> {
   const task = await request<Task>(`/tasks/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(dto),
+    signal,
   });
   if (!task) throw new Error('Empty patch response');
   return task;
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  await request<void>(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export async function deleteTask(id: string, signal?: AbortSignal): Promise<void> {
+  await request<void>(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE', signal });
 }

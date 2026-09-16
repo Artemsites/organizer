@@ -210,18 +210,24 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
     expect(textEl.textContent).toContain("<script>alert(1)</script>");
   });
 
-  it("destroy() отменяет активные запросы через AbortController и очищает состояние", async () => {
+  it("destroy() отменяет висящий запрос: signal доходит до API и aborted", async () => {
+    let capturedSignal: AbortSignal | undefined;
     vi.mocked(api.listTasks).mockImplementation(
-      () =>
+      (_status, signal) =>
         new Promise((resolve) => {
+          capturedSignal = signal;
           setTimeout(() => resolve(mockTasks), 200);
         }),
     );
 
     module.init(container);
+    expect(capturedSignal).toBeDefined();
+
     module.destroy();
 
-    // После destroy контейнер пуст и состояние очищено
+    // Abort реален, а не флаг: тот же объект signal теперь aborted
+    expect(capturedSignal?.aborted).toBe(true);
+    // Состояние модуля очищено
     expect(module.badgeCount()).toBe(0);
   });
 

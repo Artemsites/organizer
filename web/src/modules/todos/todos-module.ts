@@ -112,7 +112,7 @@ export class TodosModule implements OrganizerModule {
     this.listEl.innerHTML = '<li class="todo-app__empty">Загрузка задач...</li>';
 
     try {
-      const tasks = await listTasks();
+      const tasks = await listTasks(undefined, this.abortController.signal);
       if (this.abortController.signal.aborted) return;
 
       this.tasksMap.clear();
@@ -207,7 +207,7 @@ export class TodosModule implements OrganizerModule {
       };
 
       try {
-        const createdTask = await createTask(dto);
+        const createdTask = await createTask(dto, this.abortController.signal);
         this.tasksMap.set(createdTask.id, createdTask);
 
         // Targeted DOM Mutation: вставляем в начало списка без полной перерисовки
@@ -264,7 +264,7 @@ export class TodosModule implements OrganizerModule {
       globalEvents.emit('module:badge-updated');
 
       try {
-        await patchTask(taskId, { status: newStatus });
+        await patchTask(taskId, { status: newStatus }, this.abortController.signal);
       } catch (err: any) {
         // ========================================================================
         // ROLLBACK PATTERN (Откат в случае сетевой ошибки):
@@ -305,7 +305,7 @@ export class TodosModule implements OrganizerModule {
       globalEvents.emit('module:badge-updated');
 
       try {
-        await deleteTask(taskId);
+        await deleteTask(taskId, this.abortController.signal);
       } catch (err: any) {
         // Rollback: возвращаем задачу в кэш и в список
         this.tasksMap.set(taskId, task);
