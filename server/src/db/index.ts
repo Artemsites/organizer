@@ -46,6 +46,30 @@ export interface DbEventRow {
   created_at: number;
 }
 
+// Срок хранения выданных строк журнала (Retention): 7 суток в мс.
+// Покрывает сон ноутбука и выходные для догона и Last-Event-ID-переподключений (decisions.md, Шаг 8a.1).
+export const DELIVERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type DeliveryStatus = 'pending' | 'delivered';
+
+export interface Delivery {
+  id: string;
+  eventId: string;
+  fireAt: number;
+  deliveredAt?: number;
+  status: DeliveryStatus;
+  createdAt: number;
+}
+
+export interface DbDeliveryRow {
+  id: string;
+  event_id: string;
+  fire_at: number;
+  delivered_at: number | null;
+  status: string;
+  created_at: number;
+}
+
 export class Database {
   public db: DatabaseSync;
 
@@ -221,6 +245,70 @@ export class Database {
     const stmt = this.db.prepare('DELETE FROM events WHERE id = ?');
     stmt.run(id);
     return true;
+  }
+
+  // --- Delivery Log (журнал срабатываний напоминаний) ---
+
+  /**
+   * Best Practice: Idempotency Key на уровне СУБД (а не флаг в памяти).
+   * Пара (event_id, fire_at) — естественный идемпотентный ключ: одно событие в один момент
+   * срабатывает один раз. UNIQUE-индекс отклоняет дубль исключением SQLite, переживая рестарт.
+   * Намеренно без предварительной SELECT-проверки (check-then-insert — Race Condition / TOCTOU:
+   * два подписчика вклинятся между проверкой и вставкой). Исключение пробрасываем наружу:
+   * отклоняет хранилище, а не прикладной код (требование приёмки 8a.1).
+   */
+  scheduleDelivery(eventId: string, fireAt: number): Delivery {
+    const now = Date.now();
+    const row: Delivery = {
+      id: randomUUID(),
+      eventId,
+      fireAt,
+      status: 'pending',
+      createdAt: now,
+    };
+    const stmt = this.db.prepare(`
+      INSERT INTO delivery_log (id, event_id, fire_at, status, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(row.id, row.eventId, row.fireAt, row.status, row.createdAt);
+    return row;
+  }
+
+  getDeliveriesByEvent(eventId: string): Delivery[] {
+    const stmt = this.db.prepare('SELECT * FROM delivery_log WHERE event_id = ? ORDER BY fire_at ASC');
+    const rows = stmt.all(eventId) as unknown as DbDeliveryRow[];
+    return rows.map(this.mapDeliveryRow);
+  }
+
+  /**
+   * Best Practice: Idempotent Write (идемпотентная запись).
+   * Условие WHERE status = 'pending' делает повторный вызов no-op: фоновая джоба (Шаг 8a.3)
+   * может безопасно перебирать просроченные строки — уже выданная не выдастся дважды.
+   * Возвращает true, если строка перешла в 'delivered' этим вызовом.
+   */
+  markDelivered(id: string, deliveredAt: number = Date.now()): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE delivery_log
+      SET status = 'delivered', delivered_at = ?
+      WHERE id = ? AND status = 'pending'
+    `);
+    const result = stmt.run(deliveredAt, id) as unknown as { changes: number | bigint };
+    return Number(result.changes) > 0;
+  }
+
+  /**
+   * Best Practice: Bounded Growth (ограниченный рост таблицы).
+   * Выданные строки старше cutoff удаляются той же джобой, что разбирает журнал, —
+   * иначе повторяющиеся события заполняют диск в обход hard cap Шага 7.0.3.
+   * Невыданные строки не трогаем никогда, даже старые: это backlog догона после простоя (Шаг 8a.3).
+   */
+  pruneDeliveredOlderThan(cutoff: number): number {
+    const stmt = this.db.prepare(`
+      DELETE FROM delivery_log
+      WHERE status = 'delivered' AND delivered_at IS NOT NULL AND delivered_at < ?
+    `);
+    const result = stmt.run(cutoff) as unknown as { changes: number | bigint };
+    return Number(result.changes);
   }
 
   // --- Plugin State Key-Value ---
@@ -422,6 +510,17 @@ export class Database {
       endTime: row.end_time,
       allDay: Boolean(row.all_day),
       reminderMinutes: row.reminder_minutes || undefined,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapDeliveryRow(row: DbDeliveryRow): Delivery {
+    return {
+      id: row.id,
+      eventId: row.event_id,
+      fireAt: row.fire_at,
+      deliveredAt: row.delivered_at || undefined,
+      status: row.status as DeliveryStatus,
       createdAt: row.created_at,
     };
   }

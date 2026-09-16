@@ -32,14 +32,25 @@ CREATE TABLE IF NOT EXISTS events (
   created_at INTEGER NOT NULL
 );
 
--- Таблица напоминаний (Reminders)
-CREATE TABLE IF NOT EXISTS reminders (
+-- Журнал доставки напоминаний (Delivery Log) — служебная таблица, не часть модели.
+-- BEST PRACTICE: Database-level Deduplication (дедуп на уровне СУБД, а не флаг в памяти).
+-- UNIQUE (event_id, fire_at) переживает рестарт процесса, флаг «отправлено» в памяти — нет:
+-- повторное планирование того же срабатывания отклоняет сам SQLite (Defense-in-Depth).
+-- ON DELETE CASCADE: удаление события уносит его строки журнала без второго вызова из роута,
+-- сирот (orphaned rows) не остаётся. FOREIGN KEY работает, потому что выше включён foreign_keys = ON.
+-- CHECK на статус — тот же приём, что CHECK на tasks: недопустимое состояние не запишется
+-- даже при баге в прикладном коде. Семантика at-least-once и retention 7 суток — decisions.md (Шаг 8a.1):
+-- выданные строки старше срока чистит та же джоба, что разбирает журнал, иначе таблица растёт
+-- в обход hard cap Шага 7.0.3 (тот же класс отказа — заполнение диска).
+CREATE TABLE IF NOT EXISTS delivery_log (
   id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  target_time INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  fire_at INTEGER NOT NULL,
+  delivered_at INTEGER,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'delivered')),
   created_at INTEGER NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_log_event_fire ON delivery_log(event_id, fire_at);
 
 -- Состояние плагинов (Key-Value per plugin)
 CREATE TABLE IF NOT EXISTS plugins_state (
