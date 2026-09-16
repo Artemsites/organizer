@@ -367,4 +367,117 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
       expect.any(AbortSignal),
     );
   });
+
+  // Шаг 7b.1.6 — откат удаления возвращает узел на то же место.
+  // Старый код звал renderList(): Map.set дописывает в хвост — порядок плыл.
+  it("откат неудачного удаления сохраняет порядок списка", async () => {
+    vi.mocked(api.listTasks).mockResolvedValueOnce(mockTasks);
+    module.init(container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll(".todo-app__item")).toHaveLength(2);
+    });
+
+    vi.mocked(api.deleteTask).mockRejectedValueOnce(new Error("offline"));
+
+    const firstDeleteBtn = container.querySelector(
+      ".todo-app__delete-btn",
+    ) as HTMLButtonElement;
+    firstDeleteBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      const errorEl = container.querySelector(
+        "#todo-error-notice",
+      ) as HTMLElement;
+      expect(errorEl.style.display).not.toBe("none");
+    });
+
+    const items = container.querySelectorAll(".todo-app__item");
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain("Первая задача");
+  });
+
+  // Шаг 15.1 — честный optimistic UI: карточка в DOM до резолва createTask.
+  // Промис держим вручную: вставка обязана случиться синхронно, до microtask.
+  it("создание оптимистично: карточка в DOM до ответа сервера", async () => {
+    vi.mocked(api.listTasks).mockResolvedValueOnce([]);
+    module.init(container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector("#todo-form")).not.toBeNull();
+    });
+
+    let apiResolve!: (task: Task) => void;
+    vi.mocked(api.createTask).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          apiResolve = resolve;
+        }),
+    );
+
+    const input = container.querySelector(
+      "#todo-input",
+    ) as HTMLInputElement;
+    input.value = "Новая задача";
+    const form = container.querySelector("#todo-form") as HTMLFormElement;
+    form.dispatchEvent(
+      new SubmitEvent("submit", { bubbles: true, cancelable: true }),
+    );
+
+    // Ключевое: DOM уже обновлён синхронно, промис сервера ещё висит
+    const earlyItems = container.querySelectorAll(".todo-app__item");
+    expect(earlyItems).toHaveLength(1);
+    expect(earlyItems[0].textContent).toContain("Новая задача");
+
+    apiResolve({
+      id: "srv-1",
+      title: "Новая задача",
+      status: "todo",
+      priority: "medium",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    // Временный id заменён серверным без пересоздания узла
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-id="srv-1"]')).not.toBeNull();
+    });
+    expect(container.querySelectorAll(".todo-app__item")).toHaveLength(1);
+  });
+
+  // Шаг 15.1 — откат вставки: reject createTask убирает карточку
+  it("откат создания: карточка исчезает после reject createTask", async () => {
+    vi.mocked(api.listTasks).mockResolvedValueOnce([]);
+    module.init(container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector("#todo-form")).not.toBeNull();
+    });
+
+    vi.mocked(api.createTask).mockRejectedValueOnce(new Error("offline"));
+
+    const input = container.querySelector(
+      "#todo-input",
+    ) as HTMLInputElement;
+    input.value = "Несозданная";
+    const form = container.querySelector("#todo-form") as HTMLFormElement;
+    form.dispatchEvent(
+      new SubmitEvent("submit", { bubbles: true, cancelable: true }),
+    );
+
+    // Сначала оптимистично появилась...
+    expect(container.querySelectorAll(".todo-app__item")).toHaveLength(1);
+
+    // ...после reject — исчезла, список пуст, ошибка видна
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll(".todo-app__item")).toHaveLength(0);
+      const errorEl = container.querySelector(
+        "#todo-error-notice",
+      ) as HTMLElement;
+      expect(errorEl.style.display).not.toBe("none");
+    });
+    expect(container.querySelector(".todo-app__empty")?.textContent).toBe(
+      "Список пуст",
+    );
+  });
 });

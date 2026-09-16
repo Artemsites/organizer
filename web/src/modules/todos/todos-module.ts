@@ -63,18 +63,48 @@ export class TodosModule implements OrganizerModule {
   // (Ручной removeEventListener на 4 слушателя уже терял один — см. 7b.1.3.)
   private abortController = new AbortController();
 
+  private errorTimer: ReturnType<typeof setTimeout> | null = null;
+
   /**
-   * Подсчет бейджа на вкладке сайдбара:
-   * Считаем только активные задачи (не 'done' и не 'archived').
+   * Один проход по Map для всех счётчиков: badge, фильтры, футер.
+   * Раньше badgeCount() и updateCounters() шли дважды по тем же данным.
    */
-  badgeCount = (): number => {
-    let count = 0;
+  private statusCounts(): {
+    all: number;
+    todo: number;
+    in_progress: number;
+    review: number;
+    done: number;
+    archived: number;
+  } {
+    const counts = { all: 0, todo: 0, in_progress: 0, review: 0, done: 0, archived: 0 };
     for (const task of this.tasksMap.values()) {
-      if (task.status !== "done" && task.status !== "archived") {
-        count++;
+      counts.all++;
+      switch (task.status) {
+        case "todo":
+        case "in_progress":
+        case "review":
+          counts[task.status]++;
+          break;
+        case "done":
+          counts.done++;
+          break;
+        case "archived":
+          counts.archived++;
+          break;
+        case "backlog":
+          break;
       }
     }
-    return count;
+    return counts;
+  }
+
+  /**
+   * Бейдж вкладки: все, кроме done и archived (backlog входит).
+   */
+  badgeCount = (): number => {
+    const counts = this.statusCounts();
+    return counts.all - counts.done - counts.archived;
   };
 
   /**
@@ -95,6 +125,10 @@ export class TodosModule implements OrganizerModule {
   destroy(): void {
     // abort() снимает и fetch, и все слушатели с этим signal — unbind не нужен
     this.abortController.abort();
+    if (this.errorTimer !== null) {
+      clearTimeout(this.errorTimer);
+      this.errorTimer = null;
+    }
     this.tasksMap.clear();
     this.container = null;
     this.listEl = null;
@@ -218,34 +252,69 @@ export class TodosModule implements OrganizerModule {
         status: "todo",
       };
 
+      // OPTIMISTIC CREATE: всё синхронное — строго до первого await.
+      // Event loop (Chrome): 'submit' — macrotask; код до await бежит в ней же,
+      // и браузер рисует кадр с карточкой сразу. Продолжение после await —
+      // microtask, в этот кадр она уже не попадает. Вставка ПОСЛЕ await
+      // (как было раньше) — это pessimistic: юзер ждёт круг сети.
+      // rAF здесь не нужен — одна вставка за событие, не цикл.
+      const tempId = `temp-${crypto.randomUUID()}`;
+      const now = Date.now();
+      const optimisticTask: Task = {
+        id: tempId,
+        title,
+        priority,
+        status: "todo",
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.tasksMap.set(tempId, optimisticTask);
+
+      // Targeted DOM Mutation: вставляем в начало списка без полной перерисовки
+      if (this.listEl) {
+        this.listEl.querySelector(".todo-app__empty")?.remove();
+
+        if (this.currentFilter === "all" || this.currentFilter === "todo") {
+          this.listEl.insertAdjacentHTML(
+            "afterbegin",
+            this.renderItemHtml(optimisticTask),
+          );
+        }
+      }
+
+      if (this.inputEl) {
+        this.inputEl.value = "";
+        this.inputEl.focus();
+      }
+
+      this.updateCounters();
+      globalEvents.emit("module:badge-updated");
+
       try {
         const createdTask = await createTask(dto, this.abortController.signal);
+        if (this.abortController.signal.aborted) return;
+        // Заменяем временный id серверным без пересоздания узла:
+        // transitions, фокус и скролл не страдают.
+        this.tasksMap.delete(tempId);
         this.tasksMap.set(createdTask.id, createdTask);
-
-        // Targeted DOM Mutation: вставляем в начало списка без полной перерисовки
+        const tempEl = this.listEl?.querySelector(`[data-id="${tempId}"]`);
+        if (tempEl) {
+          (tempEl as HTMLElement).dataset.id = createdTask.id;
+          const textEl = tempEl.querySelector(".todo-app__text");
+          if (textEl) textEl.textContent = createdTask.title;
+        }
+      } catch (err: any) {
+        // Rollback вставки: убираем карточку, при пустоте возвращаем плейсхолдер
+        this.tasksMap.delete(tempId);
         if (this.listEl) {
-          const emptyPlaceholder =
-            this.listEl.querySelector(".todo-app__empty");
-          if (emptyPlaceholder) {
-            emptyPlaceholder.remove();
-          }
-
-          if (this.currentFilter === "all" || this.currentFilter === "todo") {
-            this.listEl.insertAdjacentHTML(
-              "afterbegin",
-              this.renderItemHtml(createdTask),
-            );
+          this.listEl.querySelector(`[data-id="${tempId}"]`)?.remove();
+          if (this.listEl.children.length === 0) {
+            this.listEl.innerHTML =
+              '<li class="todo-app__empty">Список пуст</li>';
           }
         }
-
-        if (this.inputEl) {
-          this.inputEl.value = "";
-          this.inputEl.focus();
-        }
-
         this.updateCounters();
         globalEvents.emit("module:badge-updated");
-      } catch (err: any) {
         this.showError(
           `Не удалось создать задачу: ${err?.message || "Ошибка сети"}`,
         );
@@ -323,7 +392,10 @@ export class TodosModule implements OrganizerModule {
       const task = this.tasksMap.get(taskId);
       if (!task) return;
 
-      // Optimistic Delete: удаляем из памяти и из DOM
+      // Optimistic Delete: удаляем из памяти и из DOM.
+      // Запоминаем соседа, чтобы откат вернул узел на то же место,
+      // а не в конец списка (Map.set дописывает в хвост).
+      const nextSibling = itemEl.nextElementSibling;
       this.tasksMap.delete(taskId);
       itemEl.remove();
       if (this.listEl && this.listEl.children.length === 0) {
@@ -335,9 +407,17 @@ export class TodosModule implements OrganizerModule {
       try {
         await deleteTask(taskId, this.abortController.signal);
       } catch (err: any) {
-        // Rollback: возвращаем задачу в кэш и в список
+        // Rollback in place: узел возвращается к сохранённому соседу.
+        // renderList() здесь нельзя — он сбросит порядок и убьёт transitions.
         this.tasksMap.set(taskId, task);
-        this.renderList();
+        if (this.listEl) {
+          this.listEl.querySelector(".todo-app__empty")?.remove();
+          if (nextSibling && nextSibling.isConnected) {
+            this.listEl.insertBefore(itemEl, nextSibling);
+          } else {
+            this.listEl.appendChild(itemEl);
+          }
+        }
         this.updateCounters();
         globalEvents.emit("module:badge-updated");
         this.showError(
@@ -424,21 +504,7 @@ export class TodosModule implements OrganizerModule {
   private updateCounters(): void {
     if (!this.container) return;
 
-    const tasks = Array.from(this.tasksMap.values());
-    const counts = {
-      all: tasks.length,
-      todo: 0,
-      in_progress: 0,
-      review: 0,
-      done: 0,
-    };
-
-    for (const t of tasks) {
-      if (t.status === "todo") counts.todo++;
-      else if (t.status === "in_progress") counts.in_progress++;
-      else if (t.status === "review") counts.review++;
-      else if (t.status === "done") counts.done++;
-    }
+    const counts = this.statusCounts();
 
     const filterBtns = this.container.querySelectorAll(".todo-app__filter-btn");
     filterBtns.forEach((btn) => {
@@ -468,7 +534,11 @@ export class TodosModule implements OrganizerModule {
     this.errorNoticeEl.textContent = message;
     this.errorNoticeEl.style.display = "block";
 
-    setTimeout(() => {
+    // Один живой таймер: новый показ гасит предыдущий, destroy() — все.
+    // Иначе второе сообщение гаснет по таймеру первого.
+    if (this.errorTimer !== null) clearTimeout(this.errorTimer);
+    this.errorTimer = setTimeout(() => {
+      this.errorTimer = null;
       if (this.errorNoticeEl) {
         this.errorNoticeEl.style.display = "none";
       }
@@ -490,16 +560,17 @@ export class TodosModule implements OrganizerModule {
   /**
    * Защита от XSS-инъекций при интерполяции строк
    *
-   * Best Practice: HTML Entity Encoding in one place (SSoT).
-   * div.textContent → div.innerHTML уже экранирует &, <, >.
-   * Кавычки в текстовом узле безопасны, поэтому сериализация их пропускает,
-   * но в атрибуте (aria-label="...") кавычка разрывает значение — stored XSS.
-   * Добиваем только " и '. Повторно & не трогаем: сущности из innerHTML
-   * (напр. &lt;) иначе превратятся в &amp;lt; (double-encoding).
+   * Best Practice: pure string replace, без DOM-узла на вызов.
+   * Раньше создавался <div> на каждый вызов (по 2 на карточку в renderList).
+   * Порядок: сначала & — иначе свои же &lt; превратятся в &amp;lt;.
+   * Кавычки обязательны: текст идёт и в атрибут aria-label="..." (stored XSS).
    */
   private escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 }
