@@ -65,6 +65,10 @@ export class TodosModule implements OrganizerModule {
 
   private errorTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Frame ID для батчинга обновлений счётчиков в requestAnimationFrame (Шаг 15.2).
+  // Coalescing (объединение) частых вызовов в один кадр рендеринга (16.6ms).
+  private countersRafId: number | null = null;
+
   /**
    * Один проход по Map для всех счётчиков: badge, фильтры, футер.
    * Раньше badgeCount() и updateCounters() шли дважды по тем же данным.
@@ -116,6 +120,7 @@ export class TodosModule implements OrganizerModule {
     this.abortController = new AbortController();
     this.renderSkeleton();
     this.bindDOMEvents();
+    this.updateCounters();
     void this.load();
   }
 
@@ -128,6 +133,13 @@ export class TodosModule implements OrganizerModule {
     if (this.errorTimer !== null) {
       clearTimeout(this.errorTimer);
       this.errorTimer = null;
+    }
+    // Resource Teardown (отмена кадра анимации):
+    // Предотвращает выполнение отложенной мутации DOM на уже отсоединённом элементе
+    // и исключает утечку памяти через замыкание (Detached DOM Tree).
+    if (this.countersRafId !== null) {
+      cancelAnimationFrame(this.countersRafId);
+      this.countersRafId = null;
     }
     this.tasksMap.clear();
     this.container = null;
@@ -499,31 +511,57 @@ export class TodosModule implements OrganizerModule {
   }
 
   /**
-   * Обновление числовых показателей на кнопках фильтра и в футере
+   * Обновление числовых показателей на кнопках фильтра и в футере.
+   *
+   * Programmer Terms & Best Practices (Шаг 15.2):
+   * 1. Layout Thrashing (Forced Synchronous Layout):
+   *    Если код чередует чтение геометрии DOM (offsetHeight, clientWidth) и запись (innerHTML, textContent),
+   *    браузер вынужден принудительно пересчитывать стили и макет (Reflow) на каждом чтении.
+   *    Мы разделяем фазы:
+   *    - Read Phase: чтение происходит из in-memory структуры данных 'tasksMap' (SSoT), а не из DOM.
+   *    - Write Phase: пакетная запись откладывается до фазы отрисовки кадра.
+   * 2. rAF-Batching & Frame Budget (16.6ms / 60fps):
+   *    Все вызовы 'updateCounters()' в рамках одного тика Event Loop объединяются (Coalescing)
+   *    через 'requestAnimationFrame'. Браузер выполнит мутацию DOM ровно один раз прямо перед
+   *    фазой Render Pipeline (Style Recalculation -> Layout -> Paint).
+   * 3. Lifecycle Cancellation:
+   *    Если модуль выгружается до начала следующего кадра, 'countersRafId' отменяется
+   *    в 'destroy()' через 'cancelAnimationFrame', исключая утечки Detached DOM и ошибки.
    */
   private updateCounters(): void {
     if (!this.container) return;
 
+    // Read Phase: считываем агрегацию из JS-памяти (SSoT) синхронно, без задержек
     const counts = this.statusCounts();
 
-    const filterBtns = this.container.querySelectorAll(".todo-app__filter-btn");
-    filterBtns.forEach((btn) => {
-      const filter = (btn as HTMLElement).dataset.filter as FilterType;
-      if (filter === "all") btn.textContent = `Все (${counts.all})`;
-      else if (filter === "todo")
-        btn.textContent = `К выполнению (${counts.todo})`;
-      else if (filter === "in_progress")
-        btn.textContent = `В работе (${counts.in_progress})`;
-      else if (filter === "review")
-        btn.textContent = `На проверке (${counts.review})`;
-      else if (filter === "done")
-        btn.textContent = `Завершено (${counts.done})`;
-    });
+    // Coalescing: если кадр уже запланирован в очереди рендеринга,
+    // повторный вызов не плодит новые rAF-колбэки.
+    if (this.countersRafId !== null) return;
 
-    const activeCount = counts.todo + counts.in_progress + counts.review;
-    if (this.footerCountEl) {
-      this.footerCountEl.innerHTML = `Осталось невыполненных: <strong>${activeCount}</strong>`;
-    }
+    this.countersRafId = requestAnimationFrame(() => {
+      this.countersRafId = null;
+      if (!this.container) return;
+
+      // Write Phase: пакетная мутация текста в узлах DOM
+      const filterBtns = this.container.querySelectorAll(".todo-app__filter-btn");
+      filterBtns.forEach((btn) => {
+        const filter = (btn as HTMLElement).dataset.filter as FilterType;
+        if (filter === "all") btn.textContent = `Все (${counts.all})`;
+        else if (filter === "todo")
+          btn.textContent = `К выполнению (${counts.todo})`;
+        else if (filter === "in_progress")
+          btn.textContent = `В работе (${counts.in_progress})`;
+        else if (filter === "review")
+          btn.textContent = `На проверке (${counts.review})`;
+        else if (filter === "done")
+          btn.textContent = `Завершено (${counts.done})`;
+      });
+
+      const activeCount = counts.todo + counts.in_progress + counts.review;
+      if (this.footerCountEl) {
+        this.footerCountEl.innerHTML = `Осталось невыполненных: <strong>${activeCount}</strong>`;
+      }
+    });
   }
 
   /**
