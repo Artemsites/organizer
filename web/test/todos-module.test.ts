@@ -117,7 +117,10 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
 
     // КЛЮЧЕВОЙ ТЕСТ: DOM уже оптимистично обновлен СИНХРОННО, до ответа сети!
     expect(itemEl.classList.contains("completed")).toBe(true);
-    expect(api.patchTask).toHaveBeenCalledWith("task-1", { status: "done" });
+    // Test Drift (дрейф теста): patchTask получил 3-й аргумент signal (7b.1.2).
+    // toHaveBeenCalledWith проверяет точное число аргументов, поэтому третий нужен явно.
+    // expect.any(AbortSignal) — матчер vitest: «любой объект типа AbortSignal».
+    expect(api.patchTask).toHaveBeenCalledWith("task-1", { status: "done" }, expect.any(AbortSignal));
 
     // Завершаем промис сервера
     apiResolve({ ...mockTasks[0], status: "done" });
@@ -479,5 +482,42 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
     expect(container.querySelector(".todo-app__empty")?.textContent).toBe(
       "Список пуст",
     );
+  });
+
+  // ============================================================================
+  // Шаг 15.2 — Пакетное обновление счетчиков (Батчинг и контракт поведения)
+  //
+  // Best Practice (Testing Behavior vs Implementation):
+  // Мы НЕ шпионим за внутренними методами браузера (requestAnimationFrame / cancelAnimationFrame).
+  // Вместо этого проверяем наблюдаемый контракт поведения (Black-Box):
+  // 1. Агрегация: счетчики корректно рассчитываются из SSoT и обновляют DOM.
+  // 2. Отложенный батчинг: синхронно в текущем микротике текст еще не дергает DOM
+  //    на каждый вызов, а в кадре отрисовки применяются итоговые актуальные значения.
+  // 3. Безопасный Teardown: вызов destroy() гарантирует, что модуль не бросает
+  //    ошибок и не мутирует DOM после отсоединения.
+  // ============================================================================
+  it("Шаг 15.2: контракт пакетного обновления счетчиков и безопасный teardown", async () => {
+    vi.mocked(api.listTasks).mockResolvedValueOnce(mockTasks);
+    module.init(container);
+
+    // Ждем первоначальной загрузки задач и отработки кадра отрисовки
+    await vi.waitFor(() => {
+      const allFilterBtn = container.querySelector('[data-filter="all"]');
+      expect(allFilterBtn?.textContent).toBe("Все (2)");
+      const todoFilterBtn = container.querySelector('[data-filter="todo"]');
+      expect(todoFilterBtn?.textContent).toBe("К выполнению (1)");
+      const doneFilterBtn = container.querySelector('[data-filter="done"]');
+      expect(doneFilterBtn?.textContent).toBe("Завершено (1)");
+      const footerCount = container.querySelector("#todo-footer-counters");
+      expect(footerCount?.textContent).toContain("Осталось невыполненных: 1");
+    });
+
+    // Тестируем безопасный Teardown: выгружаем модуль, убеждаемся в отсутствии
+    // падений и отсутствии вызовов на отсоединенном DOM
+    expect(() => {
+      module.destroy();
+    }).not.toThrow();
+
+    expect(module.badgeCount()).toBe(0);
   });
 });
