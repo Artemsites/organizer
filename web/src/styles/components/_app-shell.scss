@@ -131,7 +131,10 @@
   cursor: pointer;
   font-weight: 500;
   color: var(--color-text-muted);
-  transition: all $transition-base;
+  // Best Practice (Шаг 15.5: явный список вместо 'transition: all'):
+  // 'all' анимирует и будущие свойства, включая layout/paint (width, box-shadow).
+  // Здесь меняются только цвета — перечисляем их явно, тайминг из токена $transition-base.
+  transition: background-color $transition-base, border-color $transition-base, color $transition-base;
 
   &:hover {
     background: var(--color-surface-hover);
@@ -163,6 +166,15 @@
   padding-block: 2px;
   padding-inline: 7px;
   border-radius: radius('full');
+}
+
+// Best Practice (Шаг 15.5: одноразовый GPU-пульс при изменении счётчика):
+// Анимация только transform (compositor-only, Paint = 0). Класс вешает/перезапускает
+// AppShell из TS при смене цифры; 'motion-safe' глушит пульс при prefers-reduced-motion.
+.sidebar__badge--pulse {
+  @include motion-safe {
+    animation: keyframes-pulse-subtle $duration-fast $ease-out-smooth;
+  }
 }
 
 .sidebar__footer {
@@ -224,7 +236,9 @@
   color: var(--color-text);
   font-size: fs('lg');
   cursor: pointer;
-  transition: all $transition-base;
+  // Best Practice (Шаг 15.5): см. комментарий у .sidebar__item — 'all' заменён
+  // явным списком меняющихся свойств, чтобы ховер не тянул layout/paint.
+  transition: background-color $transition-base, color $transition-base;
 
   &:hover {
     background: var(--color-surface-hover);

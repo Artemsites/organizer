@@ -171,8 +171,21 @@ export class AppShell {
 
     if (module.badgeCount) {
       const count = module.badgeCount();
-      badgeEl.textContent = count > 0 ? String(count) : '';
+      const next = count > 0 ? String(count) : '';
+      // Best Practice (Шаг 15.5: одноразовый пульс только при смене цифры):
+      // Постоянная infinite-анимация — визуальный шум и нагрузка на композитор,
+      // поэтому перезапускаем keyframes только в момент изменения значения.
+      // Чтение offsetWidth — вынужденный синхронный reflow для перезапуска CSS-анимации
+      // (Reflow Restart Trick): допустим здесь, т.к. событие редкое (смена счётчика),
+      // а не покадровое — см. запрет layout thrashing из Шага 15.2.
+      const changed = badgeEl.textContent !== next;
+      badgeEl.textContent = next;
       (badgeEl as HTMLElement).style.display = count > 0 ? 'inline-block' : 'none';
+      if (changed && count > 0) {
+        badgeEl.classList.remove('sidebar__badge--pulse');
+        void (badgeEl as HTMLElement).offsetWidth;
+        badgeEl.classList.add('sidebar__badge--pulse');
+      }
     } else {
       (badgeEl as HTMLElement).style.display = 'none';
     }

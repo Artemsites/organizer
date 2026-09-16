@@ -518,7 +518,9 @@ export class TodosModule implements OrganizerModule {
    *    Если код чередует чтение геометрии DOM (offsetHeight, clientWidth) и запись (innerHTML, textContent),
    *    браузер вынужден принудительно пересчитывать стили и макет (Reflow) на каждом чтении.
    *    Мы разделяем фазы:
-   *    - Read Phase: чтение происходит из in-memory структуры данных 'tasksMap' (SSoT), а не из DOM.
+   *    - Read Phase: чтение происходит из in-memory структуры данных 'tasksMap' (SSoT), а не из DOM,
+   *      и строго внутри кадра — снапшот, снятый в момент вызова, протухает (init видит пустой
+   *      Map, а свежий вызов из load отбрасывается коалесингом).
    *    - Write Phase: пакетная запись откладывается до фазы отрисовки кадра.
    * 2. rAF-Batching & Frame Budget (16.6ms / 60fps):
    *    Все вызовы 'updateCounters()' в рамках одного тика Event Loop объединяются (Coalescing)
@@ -531,9 +533,6 @@ export class TodosModule implements OrganizerModule {
   private updateCounters(): void {
     if (!this.container) return;
 
-    // Read Phase: считываем агрегацию из JS-памяти (SSoT) синхронно, без задержек
-    const counts = this.statusCounts();
-
     // Coalescing: если кадр уже запланирован в очереди рендеринга,
     // повторный вызов не плодит новые rAF-колбэки.
     if (this.countersRafId !== null) return;
@@ -542,7 +541,13 @@ export class TodosModule implements OrganizerModule {
       this.countersRafId = null;
       if (!this.container) return;
 
-      // Write Phase: пакетная мутация текста в узлах DOM
+      // Best Practice (Read-in-Frame: чтение SSoT внутри кадра, а не в момент вызова):
+      // Снапшот, снятый до планирования кадра, протухает: вызов из init() видел пустой
+      // Map, а вызов из load() с полными данными отбрасывался коалесингом — в DOM
+      // писались нули навсегда. Чтение в кадре даёт последнее актуальное состояние,
+      // и схлопывание вызовов становится корректным (last state wins).
+      // Write Phase — тут же, пакетная мутация текста в узлах DOM.
+      const counts = this.statusCounts();
       const filterBtns = this.container.querySelectorAll(".todo-app__filter-btn");
       filterBtns.forEach((btn) => {
         const filter = (btn as HTMLElement).dataset.filter as FilterType;
