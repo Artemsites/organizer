@@ -325,4 +325,32 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
       'x" onfocus="alert(1)"',
     );
   });
+
+  // ============================================================================
+  // Шаг 7b.1.3 — detached DOM: слушатель фильтров снимается вместе с остальными.
+  // Ручной removeEventListener уже терял один слушатель, поэтому teardown
+  // переведён на addEventListener(..., { signal }). Тест ловит откат:
+  // убери signal у подписки фильтров — клик снова двигает .active.
+  // ============================================================================
+  it("десять init/destroy подряд не оставляют живых слушателей фильтров", async () => {
+    vi.mocked(api.listTasks).mockResolvedValue([]);
+
+    for (let i = 0; i < 10; i++) {
+      module.init(container);
+      module.destroy();
+    }
+
+    // Последний каркас мёртв: клик по фильтру ничего не двигает
+    const todoBtn = container.querySelector(
+      '[data-filter="todo"]',
+    ) as HTMLButtonElement;
+    todoBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(todoBtn.classList.contains("active")).toBe(false);
+    expect(
+      container
+        .querySelector('[data-filter="all"]')
+        ?.classList.contains("active"),
+    ).toBe(true);
+  });
 });

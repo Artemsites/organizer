@@ -52,14 +52,11 @@ export class TodosModule implements OrganizerModule {
   private tasksMap = new Map<string, Task>();
   private currentFilter: FilterType = 'all';
 
-  // AbortController для прерывания активных запросов при выгрузке модуля
+  // Один AbortController на всё: висящие fetch и все DOM-слушатели.
+  // Слушатели вешаются через addEventListener(..., { signal }) — один abort()
+  // в destroy() снимает их все разом, нативно, без ручного учёта ссылок.
+  // (Ручной removeEventListener на 4 слушателя уже терял один — см. 7b.1.3.)
   private abortController = new AbortController();
-
-  // Сохраняем ссылки на слушатели для чистого teardown в destroy()
-  private listClickListener: ((e: MouseEvent) => void) | null = null;
-  private listChangeListener: ((e: Event) => void) | null = null;
-  private formSubmitListener: ((e: SubmitEvent) => void) | null = null;
-  private filterClickListener: ((e: MouseEvent) => void) | null = null;
 
   /**
    * Подсчет бейджа на вкладке сайдбара:
@@ -91,8 +88,8 @@ export class TodosModule implements OrganizerModule {
    * Очистка ресурсов при переключении модулей (Lifecycle Teardown)
    */
   destroy(): void {
+    // abort() снимает и fetch, и все слушатели с этим signal — unbind не нужен
     this.abortController.abort();
-    this.unbindDOMEvents();
     this.tasksMap.clear();
     this.container = null;
     this.listEl = null;
@@ -194,7 +191,7 @@ export class TodosModule implements OrganizerModule {
     if (!this.container || !this.formEl || !this.listEl) return;
 
     // 1. Обработчик отправки формы (Создание задачи)
-    this.formSubmitListener = async (e: SubmitEvent) => {
+    const formSubmitListener = async (e: SubmitEvent) => {
       e.preventDefault();
       const title = this.inputEl?.value.trim();
       const priority = (this.prioritySelectEl?.value as TaskPriority) || 'medium';
@@ -233,10 +230,10 @@ export class TodosModule implements OrganizerModule {
         this.showError(`Не удалось создать задачу: ${err?.message || 'Ошибка сети'}`);
       }
     };
-    this.formEl.addEventListener('submit', this.formSubmitListener);
+    this.formEl.addEventListener('submit', formSubmitListener, { signal: this.abortController.signal });
 
     // 2. Делегирование событий изменения чекбокса (Optimistic UI)
-    this.listChangeListener = async (e: Event) => {
+    const listChangeListener = async (e: Event) => {
       const target = e.target as HTMLElement;
       if (!target.classList.contains('todo-app__checkbox')) return;
 
@@ -278,10 +275,10 @@ export class TodosModule implements OrganizerModule {
         this.showError(`Ошибка сохранения: ${err?.message || 'Статус не обновлен на сервере'}`);
       }
     };
-    this.listEl.addEventListener('change', this.listChangeListener);
+    this.listEl.addEventListener('change', listChangeListener, { signal: this.abortController.signal });
 
     // 3. Делегирование кликов по кнопке удаления
-    this.listClickListener = async (e: MouseEvent) => {
+    const listClickListener = async (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const deleteBtn = target.closest('.todo-app__delete-btn');
       if (!deleteBtn) return;
@@ -315,11 +312,11 @@ export class TodosModule implements OrganizerModule {
         this.showError(`Не удалось удалить задачу: ${err?.message || 'Ошибка сети'}`);
       }
     };
-    this.listEl.addEventListener('click', this.listClickListener);
+    this.listEl.addEventListener('click', listClickListener, { signal: this.abortController.signal });
 
     // 4. Фильтры статусов
     const filterContainer = this.container.querySelector('#todo-filters');
-    this.filterClickListener = (e: MouseEvent) => {
+    const filterClickListener = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement).closest('.todo-app__filter-btn') as HTMLButtonElement;
       if (!btn) return;
 
@@ -332,22 +329,7 @@ export class TodosModule implements OrganizerModule {
 
       this.renderList();
     };
-    filterContainer?.addEventListener('click', this.filterClickListener as EventListener);
-  }
-
-  /**
-   * Снятие слушателей (Предотвращение утечек памяти при переключении модулей)
-   */
-  private unbindDOMEvents(): void {
-    if (this.formEl && this.formSubmitListener) {
-      this.formEl.removeEventListener('submit', this.formSubmitListener);
-    }
-    if (this.listEl && this.listChangeListener) {
-      this.listEl.removeEventListener('change', this.listChangeListener);
-    }
-    if (this.listEl && this.listClickListener) {
-      this.listEl.removeEventListener('click', this.listClickListener);
-    }
+    filterContainer?.addEventListener('click', filterClickListener, { signal: this.abortController.signal });
   }
 
   /**
