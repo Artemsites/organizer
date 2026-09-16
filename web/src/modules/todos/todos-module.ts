@@ -28,17 +28,22 @@
 //    очищает слушатели, предотвращая утечки памяти (Memory Leaks).
 // ==============================================================================
 
-import { OrganizerModule } from '../../core/types';
-import { globalEvents } from '../../core/event-bus';
-import { listTasks, createTask, patchTask, deleteTask } from '../../api/client';
-import type { Task, TaskStatus, TaskPriority, CreateTaskDto } from '@organizer/shared';
+import { OrganizerModule } from "../../core/types";
+import { globalEvents } from "../../core/event-bus";
+import { listTasks, createTask, patchTask, deleteTask } from "../../api/client";
+import type {
+  Task,
+  TaskStatus,
+  TaskPriority,
+  CreateTaskDto,
+} from "@organizer/shared";
 
-type FilterType = 'all' | 'todo' | 'in_progress' | 'review' | 'done';
+type FilterType = "all" | "todo" | "in_progress" | "review" | "done";
 
 export class TodosModule implements OrganizerModule {
-  readonly id = 'todos';
-  readonly title = 'Задачи';
-  readonly icon = '✅';
+  readonly id = "todos";
+  readonly title = "Задачи";
+  readonly icon = "✅";
 
   private container: HTMLElement | null = null;
   private listEl: HTMLElement | null = null;
@@ -50,7 +55,7 @@ export class TodosModule implements OrganizerModule {
 
   // In-memory Snapshot (кэш для мгновенного отката и подсчёта badge)
   private tasksMap = new Map<string, Task>();
-  private currentFilter: FilterType = 'all';
+  private currentFilter: FilterType = "all";
 
   // Один AbortController на всё: висящие fetch и все DOM-слушатели.
   // Слушатели вешаются через addEventListener(..., { signal }) — один abort()
@@ -65,7 +70,7 @@ export class TodosModule implements OrganizerModule {
   badgeCount = (): number => {
     let count = 0;
     for (const task of this.tasksMap.values()) {
-      if (task.status !== 'done' && task.status !== 'archived') {
+      if (task.status !== "done" && task.status !== "archived") {
         count++;
       }
     }
@@ -106,7 +111,8 @@ export class TodosModule implements OrganizerModule {
   private async load(): Promise<void> {
     if (!this.listEl) return;
 
-    this.listEl.innerHTML = '<li class="todo-app__empty">Загрузка задач...</li>';
+    this.listEl.innerHTML =
+      '<li class="todo-app__empty">Загрузка задач...</li>';
 
     try {
       const tasks = await listTasks(undefined, this.abortController.signal);
@@ -121,12 +127,15 @@ export class TodosModule implements OrganizerModule {
 
       this.renderList();
       this.updateCounters();
-      globalEvents.emit('module:badge-updated');
+      globalEvents.emit("module:badge-updated");
     } catch (err: any) {
       if (this.abortController.signal.aborted) return;
-      this.showError(`Ошибка загрузки задач: ${err?.message || 'Сервер недоступен'}`);
+      this.showError(
+        `Ошибка загрузки задач: ${err?.message || "Сервер недоступен"}`,
+      );
       if (this.listEl) {
-        this.listEl.innerHTML = '<li class="todo-app__empty todo-app__empty--error">Не удалось загрузить задачи</li>';
+        this.listEl.innerHTML =
+          '<li class="todo-app__empty todo-app__empty--error">Не удалось загрузить задачи</li>';
       }
     }
   }
@@ -176,12 +185,12 @@ export class TodosModule implements OrganizerModule {
       </div>
     `;
 
-    this.listEl = this.container.querySelector('#todo-list');
-    this.formEl = this.container.querySelector('#todo-form');
-    this.inputEl = this.container.querySelector('#todo-input');
-    this.prioritySelectEl = this.container.querySelector('#todo-priority');
-    this.errorNoticeEl = this.container.querySelector('#todo-error-notice');
-    this.footerCountEl = this.container.querySelector('#todo-footer-counters');
+    this.listEl = this.container.querySelector("#todo-list");
+    this.formEl = this.container.querySelector("#todo-form");
+    this.inputEl = this.container.querySelector("#todo-input");
+    this.prioritySelectEl = this.container.querySelector("#todo-priority");
+    this.errorNoticeEl = this.container.querySelector("#todo-error-notice");
+    this.footerCountEl = this.container.querySelector("#todo-footer-counters");
   }
 
   /**
@@ -194,13 +203,14 @@ export class TodosModule implements OrganizerModule {
     const formSubmitListener = async (e: SubmitEvent) => {
       e.preventDefault();
       const title = this.inputEl?.value.trim();
-      const priority = (this.prioritySelectEl?.value as TaskPriority) || 'medium';
+      const priority =
+        (this.prioritySelectEl?.value as TaskPriority) || "medium";
       if (!title) return;
 
       const dto: CreateTaskDto = {
         title,
         priority,
-        status: 'todo',
+        status: "todo",
       };
 
       try {
@@ -209,35 +219,43 @@ export class TodosModule implements OrganizerModule {
 
         // Targeted DOM Mutation: вставляем в начало списка без полной перерисовки
         if (this.listEl) {
-          const emptyPlaceholder = this.listEl.querySelector('.todo-app__empty');
+          const emptyPlaceholder =
+            this.listEl.querySelector(".todo-app__empty");
           if (emptyPlaceholder) {
             emptyPlaceholder.remove();
           }
 
-          if (this.currentFilter === 'all' || this.currentFilter === 'todo') {
-            this.listEl.insertAdjacentHTML('afterbegin', this.renderItemHtml(createdTask));
+          if (this.currentFilter === "all" || this.currentFilter === "todo") {
+            this.listEl.insertAdjacentHTML(
+              "afterbegin",
+              this.renderItemHtml(createdTask),
+            );
           }
         }
 
         if (this.inputEl) {
-          this.inputEl.value = '';
+          this.inputEl.value = "";
           this.inputEl.focus();
         }
 
         this.updateCounters();
-        globalEvents.emit('module:badge-updated');
+        globalEvents.emit("module:badge-updated");
       } catch (err: any) {
-        this.showError(`Не удалось создать задачу: ${err?.message || 'Ошибка сети'}`);
+        this.showError(
+          `Не удалось создать задачу: ${err?.message || "Ошибка сети"}`,
+        );
       }
     };
-    this.formEl.addEventListener('submit', formSubmitListener, { signal: this.abortController.signal });
+    this.formEl.addEventListener("submit", formSubmitListener, {
+      signal: this.abortController.signal,
+    });
 
     // 2. Делегирование событий изменения чекбокса (Optimistic UI)
     const listChangeListener = async (e: Event) => {
       const target = e.target as HTMLElement;
-      if (!target.classList.contains('todo-app__checkbox')) return;
+      if (!target.classList.contains("todo-app__checkbox")) return;
 
-      const itemEl = target.closest('.todo-app__item') as HTMLElement;
+      const itemEl = target.closest(".todo-app__item") as HTMLElement;
       if (!itemEl) return;
 
       const taskId = itemEl.dataset.id;
@@ -248,7 +266,7 @@ export class TodosModule implements OrganizerModule {
 
       const prevStatus = task.status;
       const isChecked = (target as HTMLInputElement).checked;
-      const newStatus: TaskStatus = isChecked ? 'done' : 'todo';
+      const newStatus: TaskStatus = isChecked ? "done" : "todo";
 
       // ==========================================================================
       // OPTIMISTIC UI (Синхронная мутация DOM до await):
@@ -256,34 +274,42 @@ export class TodosModule implements OrganizerModule {
       // CSS-transition на GPU. Мы сохраняем ссылку на элемент, исключая пересоздание.
       // ==========================================================================
       task.status = newStatus;
-      itemEl.classList.toggle('completed', isChecked);
+      itemEl.classList.toggle("completed", isChecked);
       this.updateCounters();
-      globalEvents.emit('module:badge-updated');
+      globalEvents.emit("module:badge-updated");
 
       try {
-        await patchTask(taskId, { status: newStatus }, this.abortController.signal);
+        await patchTask(
+          taskId,
+          { status: newStatus },
+          this.abortController.signal,
+        );
       } catch (err: any) {
         // ========================================================================
         // ROLLBACK PATTERN (Откат в случае сетевой ошибки):
         // Возвращаем исходный статус в памяти и в DOM-дереве.
         // ========================================================================
         task.status = prevStatus;
-        (target as HTMLInputElement).checked = prevStatus === 'done';
-        itemEl.classList.toggle('completed', prevStatus === 'done');
+        (target as HTMLInputElement).checked = prevStatus === "done";
+        itemEl.classList.toggle("completed", prevStatus === "done");
         this.updateCounters();
-        globalEvents.emit('module:badge-updated');
-        this.showError(`Ошибка сохранения: ${err?.message || 'Статус не обновлен на сервере'}`);
+        globalEvents.emit("module:badge-updated");
+        this.showError(
+          `Ошибка сохранения: ${err?.message || "Статус не обновлен на сервере"}`,
+        );
       }
     };
-    this.listEl.addEventListener('change', listChangeListener, { signal: this.abortController.signal });
+    this.listEl.addEventListener("change", listChangeListener, {
+      signal: this.abortController.signal,
+    });
 
     // 3. Делегирование кликов по кнопке удаления
     const listClickListener = async (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const deleteBtn = target.closest('.todo-app__delete-btn');
+      const deleteBtn = target.closest(".todo-app__delete-btn");
       if (!deleteBtn) return;
 
-      const itemEl = target.closest('.todo-app__item') as HTMLElement;
+      const itemEl = target.closest(".todo-app__item") as HTMLElement;
       if (!itemEl) return;
 
       const taskId = itemEl.dataset.id;
@@ -299,7 +325,7 @@ export class TodosModule implements OrganizerModule {
         this.listEl.innerHTML = '<li class="todo-app__empty">Список пуст</li>';
       }
       this.updateCounters();
-      globalEvents.emit('module:badge-updated');
+      globalEvents.emit("module:badge-updated");
 
       try {
         await deleteTask(taskId, this.abortController.signal);
@@ -308,28 +334,38 @@ export class TodosModule implements OrganizerModule {
         this.tasksMap.set(taskId, task);
         this.renderList();
         this.updateCounters();
-        globalEvents.emit('module:badge-updated');
-        this.showError(`Не удалось удалить задачу: ${err?.message || 'Ошибка сети'}`);
+        globalEvents.emit("module:badge-updated");
+        this.showError(
+          `Не удалось удалить задачу: ${err?.message || "Ошибка сети"}`,
+        );
       }
     };
-    this.listEl.addEventListener('click', listClickListener, { signal: this.abortController.signal });
+    this.listEl.addEventListener("click", listClickListener, {
+      signal: this.abortController.signal,
+    });
 
     // 4. Фильтры статусов
-    const filterContainer = this.container.querySelector('#todo-filters');
+    const filterContainer = this.container.querySelector("#todo-filters");
     const filterClickListener = (e: MouseEvent) => {
-      const btn = (e.target as HTMLElement).closest('.todo-app__filter-btn') as HTMLButtonElement;
+      const btn = (e.target as HTMLElement).closest(
+        ".todo-app__filter-btn",
+      ) as HTMLButtonElement;
       if (!btn) return;
 
       const filter = btn.dataset.filter as FilterType;
       if (filter === this.currentFilter) return;
 
       this.currentFilter = filter;
-      filterContainer?.querySelectorAll('.todo-app__filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      filterContainer
+        ?.querySelectorAll(".todo-app__filter-btn")
+        .forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
 
       this.renderList();
     };
-    filterContainer?.addEventListener('click', filterClickListener, { signal: this.abortController.signal });
+    filterContainer?.addEventListener("click", filterClickListener, {
+      signal: this.abortController.signal,
+    });
   }
 
   /**
@@ -339,8 +375,8 @@ export class TodosModule implements OrganizerModule {
     if (!this.listEl) return;
 
     const tasks = Array.from(this.tasksMap.values());
-    const filtered = tasks.filter(t => {
-      if (this.currentFilter === 'all') return true;
+    const filtered = tasks.filter((t) => {
+      if (this.currentFilter === "all") return true;
       return t.status === this.currentFilter;
     });
 
@@ -349,23 +385,25 @@ export class TodosModule implements OrganizerModule {
       return;
     }
 
-    this.listEl.innerHTML = filtered.map(t => this.renderItemHtml(t)).join('');
+    this.listEl.innerHTML = filtered
+      .map((t) => this.renderItemHtml(t))
+      .join("");
   }
 
   /**
    * Рендер отдельного элемента <li>
    */
   private renderItemHtml(todo: Task): string {
-    const isCompleted = todo.status === 'done';
+    const isCompleted = todo.status === "done";
     const safeTitle = this.escapeHtml(todo.title);
-    const priority = todo.priority || 'medium';
+    const priority = todo.priority || "medium";
 
     return `
-      <li class="todo-app__item ${isCompleted ? 'completed' : ''}" data-id="${this.escapeHtml(todo.id)}">
+      <li class="todo-app__item ${isCompleted ? "completed" : ""}" data-id="${this.escapeHtml(todo.id)}">
         <input 
           type="checkbox" 
           class="todo-app__checkbox" 
-          ${isCompleted ? 'checked' : ''} 
+          ${isCompleted ? "checked" : ""} 
           aria-label="Отметить задачу '${safeTitle}'"
         />
         <span class="todo-app__text">${safeTitle}</span>
@@ -391,20 +429,24 @@ export class TodosModule implements OrganizerModule {
     };
 
     for (const t of tasks) {
-      if (t.status === 'todo') counts.todo++;
-      else if (t.status === 'in_progress') counts.in_progress++;
-      else if (t.status === 'review') counts.review++;
-      else if (t.status === 'done') counts.done++;
+      if (t.status === "todo") counts.todo++;
+      else if (t.status === "in_progress") counts.in_progress++;
+      else if (t.status === "review") counts.review++;
+      else if (t.status === "done") counts.done++;
     }
 
-    const filterBtns = this.container.querySelectorAll('.todo-app__filter-btn');
-    filterBtns.forEach(btn => {
+    const filterBtns = this.container.querySelectorAll(".todo-app__filter-btn");
+    filterBtns.forEach((btn) => {
       const filter = (btn as HTMLElement).dataset.filter as FilterType;
-      if (filter === 'all') btn.textContent = `Все (${counts.all})`;
-      else if (filter === 'todo') btn.textContent = `К выполнению (${counts.todo})`;
-      else if (filter === 'in_progress') btn.textContent = `В работе (${counts.in_progress})`;
-      else if (filter === 'review') btn.textContent = `На проверке (${counts.review})`;
-      else if (filter === 'done') btn.textContent = `Завершено (${counts.done})`;
+      if (filter === "all") btn.textContent = `Все (${counts.all})`;
+      else if (filter === "todo")
+        btn.textContent = `К выполнению (${counts.todo})`;
+      else if (filter === "in_progress")
+        btn.textContent = `В работе (${counts.in_progress})`;
+      else if (filter === "review")
+        btn.textContent = `На проверке (${counts.review})`;
+      else if (filter === "done")
+        btn.textContent = `Завершено (${counts.done})`;
     });
 
     const activeCount = counts.todo + counts.in_progress + counts.review;
@@ -419,21 +461,24 @@ export class TodosModule implements OrganizerModule {
   private showError(message: string): void {
     if (!this.errorNoticeEl) return;
     this.errorNoticeEl.textContent = message;
-    this.errorNoticeEl.style.display = 'block';
+    this.errorNoticeEl.style.display = "block";
 
     setTimeout(() => {
       if (this.errorNoticeEl) {
-        this.errorNoticeEl.style.display = 'none';
+        this.errorNoticeEl.style.display = "none";
       }
     }, 4000);
   }
 
   private priorityLabel(priority: TaskPriority): string {
     switch (priority) {
-      case 'high': return 'Срочно';
-      case 'low': return 'Низкий';
-      case 'medium':
-      default: return 'Обычный';
+      case "high":
+        return "Срочно";
+      case "low":
+        return "Низкий";
+      case "medium":
+      default:
+        return "Обычный";
     }
   }
 
@@ -448,8 +493,8 @@ export class TodosModule implements OrganizerModule {
    * (напр. &lt;) иначе превратятся в &amp;lt; (double-encoding).
    */
   private escapeHtml(text: string): string {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
-    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 }
