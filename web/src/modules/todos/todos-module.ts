@@ -379,7 +379,7 @@ export class TodosModule implements OrganizerModule {
     const priority = todo.priority || 'medium';
 
     return `
-      <li class="todo-app__item ${isCompleted ? 'completed' : ''}" data-id="${todo.id}">
+      <li class="todo-app__item ${isCompleted ? 'completed' : ''}" data-id="${this.escapeHtml(todo.id)}">
         <input 
           type="checkbox" 
           class="todo-app__checkbox" 
@@ -457,10 +457,17 @@ export class TodosModule implements OrganizerModule {
 
   /**
    * Защита от XSS-инъекций при интерполяции строк
+   *
+   * Best Practice: HTML Entity Encoding in one place (SSoT).
+   * div.textContent → div.innerHTML уже экранирует &, <, >.
+   * Кавычки в текстовом узле безопасны, поэтому сериализация их пропускает,
+   * но в атрибуте (aria-label="...") кавычка разрывает значение — stored XSS.
+   * Добиваем только " и '. Повторно & не трогаем: сущности из innerHTML
+   * (напр. &lt;) иначе превратятся в &amp;lt; (double-encoding).
    */
   private escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 }

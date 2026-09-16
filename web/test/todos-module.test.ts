@@ -279,4 +279,44 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
     // Из 5 задач активны только 3 (todo, in_progress, review)
     expect(module.badgeCount()).toBe(3);
   });
+
+  // ============================================================================
+  // Шаг 7b.1.1 — Stored XSS в aria-label: кавычка не должна разрывать атрибут
+  //
+  // Учебный момент: старый escapeHtml() экранирует < > & но НЕ " и '.
+  // В текстовом узле HTML кавычки безопасны, но в атрибуте:
+  //   aria-label="x" onfocus="alert(1)"
+  // — кавычка разрывает значение атрибута и открывает дыру.
+  // ============================================================================
+  it("название с кавычкой не разрывает aria-label (stored XSS)", async () => {
+    const xssTask: Task = {
+      id: "task-xss-quote",
+      title: 'x" onfocus="alert(1)" autofocus="',
+      status: "todo",
+      priority: "medium",
+      createdAt: 9999,
+      updatedAt: 9999,
+    };
+
+    vi.mocked(api.listTasks).mockResolvedValueOnce([xssTask]);
+    module.init(container);
+
+    await vi.waitFor(() => {
+      const items = container.querySelectorAll(".todo-app__item");
+      expect(items).toHaveLength(1);
+    });
+
+    const checkbox = container.querySelector(
+      ".todo-app__checkbox",
+    ) as HTMLInputElement;
+
+    // Атрибут не разорван: лишних атрибутов нет, payload — текст внутри aria-label.
+    // getAttribute возвращает декодированное значение, поэтому подстроку
+    // "onfocus" искать бессмысленно — она там как текст. Проверяем структуру.
+    expect(checkbox.hasAttribute("onfocus")).toBe(false);
+    expect(checkbox.hasAttribute("autofocus")).toBe(false);
+    expect(checkbox.getAttribute("aria-label")).toContain(
+      'x" onfocus="alert(1)"',
+    );
+  });
 });
