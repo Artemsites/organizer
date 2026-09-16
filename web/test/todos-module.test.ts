@@ -353,4 +353,18 @@ describe("TodosModule: REST API, Targeted DOM, Optimistic UI", () => {
         ?.classList.contains("active"),
     ).toBe(true);
   });
+
+  // Шаг 7b.1.5 — todos просит у сервера ровно 4 статуса (spec.md §2).
+  // backlog/archived — чужие представления (Шаги 9/10), иначе весь бэклог
+  // утекает в счётчик «Все». Фильтрует сервер (7a), модуль лишь передаёт arg.
+  it("load запрашивает только todo/in_progress/review/done", async () => {
+    vi.mocked(api.listTasks).mockResolvedValue([]);
+
+    module.init(container);
+
+    expect(vi.mocked(api.listTasks)).toHaveBeenCalledWith(
+      ["todo", "in_progress", "review", "done"],
+      expect.any(AbortSignal),
+    );
+  });
 });

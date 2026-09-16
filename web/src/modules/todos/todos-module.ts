@@ -115,7 +115,12 @@ export class TodosModule implements OrganizerModule {
       '<li class="todo-app__empty">Загрузка задач...</li>';
 
     try {
-      const tasks = await listTasks(undefined, this.abortController.signal);
+      // SSoT-фильтр: todos — ровно 4 статуса (spec.md §2). backlog/archived —
+      // отдельные представления (Шаги 9/10). Фильтрует сервер одним запросом (7a).
+      const tasks = await listTasks(
+        ['todo', 'in_progress', 'review', 'done'],
+        this.abortController.signal,
+      );
       if (this.abortController.signal.aborted) return;
 
       this.tasksMap.clear();
