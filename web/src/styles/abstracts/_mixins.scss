@@ -136,3 +136,60 @@
   pointer-events: none;
   transition: opacity vars.$transition-base, visibility vars.$transition-base;
 }
+
+// ==============================================================================
+// KEYFRAMES & ACCESSIBILITY (Шаг 15.5: Тайминги, Easing, prefers-reduced-motion)
+// ==============================================================================
+// Programmer Terms & Best Practices:
+// 1. Compositor-Only Keyframes (Paint = 0, Layout = 0):
+//    В @keyframes используются ИСКЛЮЧИТЕЛЬНО 'transform' и 'opacity'.
+//    Любая анимация свойств геометрии (top, margin, height) или цвета вызывает
+//    постоянный Reflow/Paint на каждый кадр анимации (CPU Bottleneck).
+// 2. Natural Easing:
+//    $ease-out-smooth (cubic-bezier(0.16, 1, 0.3, 1)) моделирует закон инерции:
+//    быстрый старт с плавной пружинящей остановкой (Fast-In, Slow-Out).
+// 3. Motion Accessibility:
+//    Миксин 'motion-safe' гарантирует, что анимация воспроизводится только
+//    если пользователь не запросил отключение анимаций в ОС.
+// ==============================================================================
+
+/// Доступность (a11y): применение анимаций только при отсутствии ограничений в ОС
+@mixin motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    @content;
+  }
+}
+
+/// Плавное появление элемента со сдвигом снизу вверх
+@keyframes keyframes-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/// Выплывание плашки ошибки / тоста сверху вниз
+@keyframes keyframes-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/// Пульс бейджа / счетчика на GPU
+@keyframes keyframes-pulse-subtle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}

@@ -39,6 +39,13 @@
   border-radius: radius('sm');
   color: #fca5a5;
   font-size: fs('sm');
+
+  // Best Practice (Шаг 15.5: Аппаратная анимация появления плашки ошибки):
+  // Выплывание сверху вниз через GPU keyframes-slide-down с кривой замедления $ease-out-smooth.
+  // Защита доступности через миксин motion-safe.
+  @include motion-safe {
+    animation: keyframes-slide-down $duration-normal $ease-out-smooth;
+  }
 }
 
 .todo-app__filters {
@@ -94,6 +101,12 @@
   border-radius: radius('md');
   transition: transform $duration-fast $ease-out-smooth, opacity $duration-normal $ease-out-smooth, box-shadow $transition-base;
   @include hardware-accel;
+
+  // Best Practice (Шаг 15.5: Аппаратный вход новой карточки):
+  // Плавное всплывание через GPU (transform + opacity), исключая пересчёт Layout соседних узлов.
+  @include motion-safe {
+    animation: keyframes-fade-in-up $duration-fast $ease-out-smooth;
+  }
 
   &:hover {
     transform: translateX(shift('hover-x'));

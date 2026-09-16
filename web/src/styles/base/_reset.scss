@@ -45,3 +45,18 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+// Accessibility (a11y) & Motion Sensitivity:
+// Уважение настроек ОС пользователя (prefers-reduced-motion).
+// Если пользователь включил уменьшение движения (укачивание, вестибулярные нарушения),
+// все анимации и переходы сжимаются до мгновенных (0.01ms), исключая дискомфорт.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
