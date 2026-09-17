@@ -73,3 +73,9 @@
 Кода не трогали. Незакоммичено: `plan.md`, `acceptance.md`, `memory.md`, `issues.md`, `submit.md` — правки памяти за 2026-09-17 (Шаг 8a.3.0, пункты приёмки под уборку журнала и оба входа записи события). Правила проекта (`AGENTS.md`) хозяин закоммитил отдельно.
 
 Задай вопросы, если что-то неясно. Затем жди `/i-start-pair` или `/i-step-pair`.
+
+## Приём 2026-09-17
+
+Роль: mid. Первый шаг: 8a.3.0 (plan.md:93).
+Сверено: `server/src/routes/sync.ts:10` без валидации (`as SyncPayload`, прямые `upsertTask`/`upsertEvent`) — шаг актуален; `server/src/routes/schemas.ts:105` только `createEventSchema`, sync-схемы нет; пути `server/src/db/`, `server/src/routes/`, `server/src/scheduler/`, `server/test/`, `shared/src/`, `cli/src/index.ts` на месте; тесты `server/test/sync.test.ts`, `events-validation.test.ts` на месте, команда `npm --prefix server test` (vitest run) доступна.
+Расхождение: plan.md:100 метит 8a.3 [x] (коммит `4e46df9` в логе есть), блокер 8a.3.0 при этом [ ]; submit.md:32-33 описывает 8a.3 как будущий [Pro]. Порядок инвертирован, на приём 8a.3.0 не влияет.
