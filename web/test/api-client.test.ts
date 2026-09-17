@@ -44,7 +44,11 @@ describe("api/client: проброс AbortSignal в fetch", () => {
       error = err;
     }
 
-    expect(seenSignal?.aborted).toBe(true);
+    // `!`, а не `?.`: TypeScript не отслеживает присваивание внутри колбэка-заглушки (Control Flow
+    // Analysis идёт по прямому потоку кода), поэтому здесь он всё ещё считает `seenSignal` равным
+    // `null` и на `?.aborted` сужает тип до `never` (ошибка TS2339). Наличие сигнала проверено
+    // строкой выше — `!` снимает ложное сужение, сами проверки теста не ослаблены.
+    expect(seenSignal!.aborted).toBe(true);
     expect((error as DOMException | undefined)?.name).toBe("AbortError");
   });
 });
