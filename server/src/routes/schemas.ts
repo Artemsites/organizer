@@ -136,3 +136,58 @@ export const createEventSchema = z
     message: 'endTime must not be earlier than startTime',
     path: ['endTime'],
   });
+
+/**
+ * Best Practice: Boundary Validation на втором входе в ту же таблицу (Second Entrance).
+ * `POST /api/v1/sync` писал задачи и события через `as SyncPayload` мимо схем — тот же
+ * Mass Assignment и те же запредельные значения, что уже закрыты для прямых роутов.
+ * Невалидный `reminderMinutes` здесь опаснее обычного: хук планирования в `upsertEvent`
+ * посчитает по нему момент срабатывания, и догон выдаст мусор залпом.
+ *
+ * Почему отдельная схема, а не `createEventSchema`: Zod в режиме `strip()` вырезает `id`
+ * и `createdAt`, а синхронизация обязана их сохранить — по `id` идёт `ON CONFLICT DO UPDATE`.
+ * Почему через `innerType().extend()`, а не копией полей: границы (лимиты из констант,
+ * `.int()`, инвариант конца) живут в одном месте (SSoT) — копия разъедется при смене лимита.
+ * `.refine()` применён заново, потому что он возвращает обёртку `ZodEffects`, а `extend()`
+ * живёт на внутреннем объекте.
+ *
+ * ENGLISH PROGRAMMER CONCEPTS:
+ * - Second Entrance — второй путь записи в то же хранилище. Правило обязано держаться
+ *   на каждом входе, иначе первый закрытый вход — декорация.
+ */
+export const syncEventSchema = createEventSchema
+  .innerType()
+  .extend({
+    id: z.string().trim().min(1, 'id is required for sync'),
+    createdAt: z
+      .number({ invalid_type_error: 'createdAt must be an integer timestamp' })
+      .int('createdAt must be an integer')
+      .positive('createdAt must be a positive timestamp'),
+  })
+  .refine((event) => event.endTime >= event.startTime, {
+    message: 'endTime must not be earlier than startTime',
+    path: ['endTime'],
+  });
+
+/**
+ * Та же причина, что у `syncEventSchema`: задачи едут тем же пакетом синхронизации.
+ *
+ * Почему `status`/`priority` здесь обязательны, хотя в `createTaskSchema` опциональны:
+ * на создании сервер подставляет дефолты сам (`db.createTask`), а в синхронизации
+ * дефолт означал бы выдуманный статус, который перезапишет настоящий при
+ * `ON CONFLICT DO UPDATE` (Silent Data Loss — молчаливая потеря данных).
+ * Кривая запись отбрасывается целиком, а не чинится угадыванием.
+ */
+export const syncTaskSchema = createTaskSchema.extend({
+  id: z.string().trim().min(1, 'id is required for sync'),
+  status: z.enum(taskStatuses),
+  priority: z.enum(taskPriorities),
+  createdAt: z
+    .number({ invalid_type_error: 'createdAt must be an integer timestamp' })
+    .int('createdAt must be an integer')
+    .positive('createdAt must be a positive timestamp'),
+  updatedAt: z
+    .number({ invalid_type_error: 'updatedAt must be an integer timestamp' })
+    .int('updatedAt must be an integer')
+    .positive('updatedAt must be a positive timestamp'),
+});
