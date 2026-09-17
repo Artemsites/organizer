@@ -30,11 +30,13 @@ describe("Organizer Server: Delivery Log journal", () => {
 
   function makeEvent() {
     const now = Date.now();
+    // Без `reminderMinutes`: этот набор проверяет журнал доставки сам по себе, а событие с
+    // интервалом напоминания теперь планирует строку ещё при создании (Шаг 8a.3) — тогда счётчики
+    // ниже считали бы чужие строки. Планирование проверяется в `reminders-dispatch.test.ts`.
     return server.db.createEvent({
       title: "Встреча",
       startTime: now + 3_600_000,
       endTime: now + 7_200_000,
-      reminderMinutes: 10,
     });
   }
 

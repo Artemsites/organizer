@@ -442,7 +442,13 @@ export class TodosModule implements OrganizerModule {
     });
 
     // 4. Фильтры статусов
-    const filterContainer = this.container.querySelector("#todo-filters");
+    // Тип указан аргументом (`querySelector<HTMLElement>`), а не оставлен выводом. Без него дженерик
+    // возвращает `Element | null`, а у `Element` нет события `click` — оно объявлено в
+    // `HTMLElementEventMap`. Компилятор отвергает и строку `"click"`, и обработчик с `MouseEvent`
+    // (TS2769), потому что перегрузка для `Element` ждёт `(this: Element, ev: Event) => any`.
+    // Отвергнут каст `as HTMLElement`: он глушит ошибку, но не проверяет тип — следующий
+    // `querySelector` на неверном селекторе снова вернёт `Element`, и каст это скроет.
+    const filterContainer = this.container.querySelector<HTMLElement>("#todo-filters");
     const filterClickListener = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement).closest(
         ".todo-app__filter-btn",

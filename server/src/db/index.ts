@@ -70,6 +70,30 @@ export interface DbDeliveryRow {
   created_at: number;
 }
 
+/**
+ * ENGLISH PROGRAMMER CONCEPTS:
+ * - Due Reminder — срабатывание, чей момент (`fire_at`) уже наступил, а выдачи ещё не было.
+ *   «Просроченное» здесь не значит «опоздавшее»: это очередь работы для догона.
+ * - Projection (проекция) — чтение только нужных полей вместо `SELECT *` по двум таблицам:
+ *   выдача напоминания не имеет права тянуть весь объект события (описание на 2000 символов
+ *   уедет в канал доставки и в браузер, где не нужен).
+ */
+export interface DueReminder {
+  deliveryId: string;
+  eventId: string;
+  fireAt: number;
+  title: string;
+  startTime: number;
+}
+
+export interface DbDueReminderRow {
+  delivery_id: string;
+  event_id: string;
+  fire_at: number;
+  title: string;
+  start_time: number;
+}
+
 export class Database {
   public db: DatabaseSync;
 
@@ -209,6 +233,16 @@ export class Database {
     return rows.map(this.mapEventRow);
   }
 
+  /**
+   * Почему запись события и планирование напоминания — одна транзакция, а не два запроса подряд:
+   * сбой между ними оставил бы событие в календаре без напоминания. Это потеря без ошибки в
+   * ответе и без строки в логах — ровно тот тихий отказ, от которого предостерегает `decisions.md`
+   * («доставить хотя бы раз»). С транзакцией клиент получает 500 и может повторить запрос.
+   *
+   * Почему хук планирования стоит здесь, а не в роуте `POST /api/v1/events`: в `events` пишут два
+   * пути — этот роут и `POST /api/v1/sync` (`upsertEvent`). Хук в роуте оставил бы второй вход
+   * без напоминаний, а хук в каждом вызывающем — это два места, которые разъедутся (SSoT).
+   */
   createEvent(dto: CreateEventDto): CalendarEvent {
     const now = Date.now();
     const event: CalendarEvent = {
@@ -227,16 +261,22 @@ export class Database {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(
-      event.id,
-      event.title,
-      event.description || null,
-      event.startTime,
-      event.endTime,
-      event.allDay ? 1 : 0,
-      event.reminderMinutes || null,
-      event.createdAt
-    );
+    // `?? null`, а не `|| null`: интервал `0` — законное значение («напомнить в момент начала»),
+    // а `||` превратил бы его в NULL, и напоминание исчезло бы молча уже на записи.
+    this.transaction(() => {
+      stmt.run(
+        event.id,
+        event.title,
+        event.description || null,
+        event.startTime,
+        event.endTime,
+        event.allDay ? 1 : 0,
+        event.reminderMinutes ?? null,
+        event.createdAt
+      );
+
+      this.planEventReminder(event);
+    });
 
     return event;
   }
@@ -309,6 +349,112 @@ export class Database {
     `);
     const result = stmt.run(cutoff) as unknown as { changes: number | bigint };
     return Number(result.changes);
+  }
+
+  /**
+   * Best Practice: Single Source of Truth для момента срабатывания.
+   * Момент не хранится отдельным полем события — он выводится из `startTime` и `reminderMinutes`
+   * одним правилом (`fire_at = start_time − reminder_minutes × 60 000`). Храни его вторым полем,
+   * перенос начала события оставил бы старое значение в живых — классический рассинхрон копии.
+   *
+   * Почему DELETE, а не UPDATE: перенос начала и смена интервала делают прежнюю невыданную строку
+   * мусором, и она сработала бы в старом времени, а потом ещё раз в новом — два напоминания об
+   * одном событии. Удаляем строго `status = 'pending'`: выданная строка — история доставки и,
+   * кроме того, держит UNIQUE-пару (event_id, fire_at), по которой повтор не запланируется.
+   *
+   * Почему `ON CONFLICT DO NOTHING`, а не голый INSERT: синхронизация шлёт событие тем же объектом
+   * повторно, и второй INSERT наткнулся бы на UNIQUE-индекс — исключение вылетело бы наружу в виде
+   * 500 на совершенно законном запросе. NOOP здесь и есть идемпотентность: тот же вход — тот же
+   * результат, без второго срабатывания.
+   *
+   * Вызывается только из транзакции записи события (`createEvent`, `upsertEvent`): отдельным
+   * вызовом DELETE и INSERT разъехались бы при сбое, и напоминание пропало бы молча.
+   */
+  private planEventReminder(event: CalendarEvent): void {
+    this.db
+      .prepare(`DELETE FROM delivery_log WHERE event_id = ? AND status = 'pending'`)
+      .run(event.id);
+
+    // Проверка именно на `undefined`: `0` — допустимый интервал, `if (!event.reminderMinutes)`
+    // выбросил бы «напомнить в момент начала» без единого следа в логах.
+    if (event.reminderMinutes === undefined) return;
+
+    const fireAt = event.startTime - event.reminderMinutes * 60_000;
+    this.db
+      .prepare(`
+        INSERT INTO delivery_log (id, event_id, fire_at, status, created_at)
+        VALUES (?, ?, ?, 'pending', ?)
+        ON CONFLICT(event_id, fire_at) DO NOTHING
+      `)
+      .run(randomUUID(), event.id, fireAt, Date.now());
+  }
+
+  /**
+   * Best Practice: Claim-then-Deliver — «забрал строку, она моя».
+   * Чтение просроченных и пометка «выдано» идут одной транзакцией: между двумя отдельными
+   * запросами успевает вклиниться второй подписчик, и одно напоминание уходит дважды.
+   * UNIQUE-индекс от этого не защищает — он защищает от повторного планирования, а не от
+   * повторной выдачи (decisions.md, Шаг 8a.4).
+   *
+   * Почему условие `fire_at <= now`, а не «попал в текущую минуту»: это догон. Ноутбук, закрытый
+   * на ночь (или засыпание приложения на Beget вместе с планировщиком — issues.md), иначе молча
+   * терял бы напоминания: тихий отказ, которого никто не заметит.
+   */
+  claimDueReminders(now: number): DueReminder[] {
+    return this.transaction(() => {
+      const rows = this.db
+        .prepare(`
+          SELECT d.id AS delivery_id, d.event_id, d.fire_at, e.title, e.start_time
+          FROM delivery_log d
+          JOIN events e ON e.id = d.event_id
+          WHERE d.status = 'pending' AND d.fire_at <= ?
+          ORDER BY d.fire_at ASC
+        `)
+        .all(now) as unknown as DbDueReminderRow[];
+
+      const updated = this.db
+        .prepare(`
+          UPDATE delivery_log
+          SET status = 'delivered', delivered_at = ?
+          WHERE status = 'pending' AND fire_at <= ?
+        `)
+        .run(now, now) as unknown as { changes: number | bigint };
+
+      // Инвариант «ровно один раз»: число помеченных обязано совпасть с числом прочитанных.
+      // Расхождение означает, что кто-то забрал строку между чтением и пометкой, — это не
+      // «мелкая неточность», а уже случившаяся двойная выдача. Откат и исключение громче молчания.
+      if (Number(updated.changes) !== rows.length) {
+        throw new Error(
+          `Delivery claim mismatch: read ${rows.length}, marked ${Number(updated.changes)}`
+        );
+      }
+
+      return rows.map(this.mapDueReminderRow);
+    });
+  }
+
+  /**
+   * Best Practice: Explicit Transaction Boundary (явная граница транзакции).
+   * Несколько записей, обязанных попасть в БД вместе или не попасть вовсе.
+   *
+   * Почему без вложенности: SQLite не умеет вложенные транзакции
+   * (`cannot start a transaction within a transaction`), поэтому каждый публичный метод открывает
+   * ровно одну, а общий код планирования (`planEventReminder`) вкладывается в неё как функция —
+   * своей транзакции он не начинает.
+   *
+   * Отвергнута альтернатива «пусть каждая запись идёт своей автотранзакцией»: сбой посередине
+   * оставил бы данные в полусостоянии (событие без напоминания) без ошибки в ответе клиенту.
+   */
+  private transaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   // --- Plugin State Key-Value ---
@@ -423,6 +569,12 @@ export class Database {
     return rows.map(this.mapEventRow);
   }
 
+  /**
+   * Почему `upsertEvent` тоже планирует напоминание: это второй вход в таблицу `events`
+   * (`POST /api/v1/sync`), и без него событие, приехавшее синхронизацией, осталось бы без
+   * срабатывания — то же правило должно работать на всех входах (SSoT момента срабатывания
+   * живёт в `planEventReminder`, а не в роутах).
+   */
   upsertEvent(event: CalendarEvent): void {
     const stmt = this.db.prepare(`
       INSERT INTO events (id, title, description, start_time, end_time, all_day, reminder_minutes, created_at)
@@ -436,16 +588,20 @@ export class Database {
         reminder_minutes = excluded.reminder_minutes
     `);
 
-    stmt.run(
-      event.id,
-      event.title,
-      event.description || null,
-      event.startTime,
-      event.endTime,
-      event.allDay ? 1 : 0,
-      event.reminderMinutes || null,
-      event.createdAt
-    );
+    this.transaction(() => {
+      stmt.run(
+        event.id,
+        event.title,
+        event.description || null,
+        event.startTime,
+        event.endTime,
+        event.allDay ? 1 : 0,
+        event.reminderMinutes ?? null,
+        event.createdAt
+      );
+
+      this.planEventReminder(event);
+    });
   }
 
   upsertClient(client: { id: string; name?: string; platform?: string; status?: string }): void {
@@ -509,7 +665,10 @@ export class Database {
       startTime: row.start_time,
       endTime: row.end_time,
       allDay: Boolean(row.all_day),
-      reminderMinutes: row.reminder_minutes || undefined,
+      // `?? undefined`, а не `|| undefined`: интервал `0` — это «напомнить в момент начала»,
+      // и `||` вернул бы клиенту `undefined` — напоминание выглядело бы отключённым на чтении,
+      // хотя в БД и в журнале доставки оно есть.
+      reminderMinutes: row.reminder_minutes ?? undefined,
       createdAt: row.created_at,
     };
   }
@@ -522,6 +681,16 @@ export class Database {
       deliveredAt: row.delivered_at || undefined,
       status: row.status as DeliveryStatus,
       createdAt: row.created_at,
+    };
+  }
+
+  private mapDueReminderRow(row: DbDueReminderRow): DueReminder {
+    return {
+      deliveryId: row.delivery_id,
+      eventId: row.event_id,
+      fireAt: row.fire_at,
+      title: row.title,
+      startTime: row.start_time,
     };
   }
 

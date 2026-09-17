@@ -7,6 +7,7 @@ import { jobRoutes } from './routes/jobs.js';
 import { syncRoutes } from './routes/sync.js';
 import { pluginRoutes, registerServerPlugin } from './routes/plugins.js';
 import { Scheduler } from './scheduler/index.js';
+import { registerReminderDispatch } from './reminders.js';
 
 export { registerServerPlugin };
 
@@ -69,6 +70,12 @@ export async function createServer(options: ServerOptions = {}) {
   const scheduler = new Scheduler(db);
 
   if (options.startScheduler !== false) {
+    // Внутренняя джоба напоминаний: обработчик + строка расписания (идемпотентно — см. `reminders.ts`).
+    // Стоит до `start()`: обработчик ищется по имени действия в момент срабатывания, а джоба,
+    // загруженная `start()` из БД, может сработать в ту же минуту — имя должно быть уже занято.
+    // Выключенный планировщик (`startScheduler: false`, тесты) гасит и встроенные джобы: иначе
+    // тест, которому планировщик не нужен, получал бы живой таймер.
+    registerReminderDispatch(db, scheduler);
     scheduler.start();
   }
 
