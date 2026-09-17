@@ -59,4 +59,8 @@ export interface SyncResult {
   tasks: Task[];
   events: CalendarEvent[];
   backlog: BacklogItem[];
+  // Счётчики записей, отброшенных валидацией входа (Шаг 8a.3.0): пакет применяется
+  // поштучно, и клиент обязан видеть, что часть его пачки не принята.
+  rejectedTasks: number;
+  rejectedEvents: number;
 }
