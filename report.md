@@ -29,3 +29,10 @@
 - Синхронизация не планирует по мусорным данным — `server/src/routes/sync.ts:10` читает тело как `as SyncPayload`, валидации нет; Шаг 8a.3.0 (`plan.md:93`) остался `- [ ]`, тогда как хук планирования уже стоит в `upsertEvent` (`server/src/db/index.ts:603`). Это ровно тот блокер, ради которого 8a.3.0 был заведён перед 8a.3.
 
 Проверено приёмщиком самостоятельно: `npm test` (без `ORGANIZER_TOKEN` в окружении) — server 57/57, cli 5/5, web 23/23, ошибок нет. Планирование в хранилище — `db/index.ts:373` (`planEventReminder`), вызовы из `createEvent` и `upsertEvent`. Атомарная выдача с инвариантом «прочитано = помечено» — `db/index.ts:403`. Прод-вызов уборки журнала — `server/src/reminders.ts:37`. Тесты `server/test/reminders-dispatch.test.ts` проверяют заявленное поведение, а не соседнее: у каждого записано, на каком откате кода он краснеет.
+
+## Шаг 8a.3.0 закрыт 2026-09-18
+
+Код — коммит `e92bedb` (до приёма): `syncEventSchema`/`syncTaskSchema` (`server/src/routes/schemas.ts:158,181`), карантин поштучно + `rejectedTasks`/`rejectedEvents` (`server/src/routes/sync.ts:37-60`), контракт (`shared/src/api.ts:57`).
+Прогон хозяина: `env -u ORGANIZER_TOKEN npm --prefix server test -- test/sync.test.ts` → `Test Files 1 passed (1), Tests 6 passed (6)`, включая проверку «нет строки в `delivery_log`» (`sync.test.ts:182-183`). Галка в `plan.md:93` поставлена этим ходом.
+Отклонение от `plan.md:98`: код даёт два счётчика вместо одного `rejected`. Аддитивно, `cli`/`web` не ломает. Строку плана не правил — решение за Оркестратором.
+Следующий — 8a.4 `[Model: Pro]`, отдаю Оркестратору.

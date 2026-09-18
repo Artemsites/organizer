@@ -88,3 +88,9 @@
 Роль: mid. Первый шаг: 8a.3.0 (plan.md:93).
 Сверено: `server/src/routes/sync.ts:10` без валидации (`as SyncPayload`, прямые `upsertTask`/`upsertEvent`) — шаг актуален; `server/src/routes/schemas.ts:105` только `createEventSchema`, sync-схемы нет; пути `server/src/db/`, `server/src/routes/`, `server/src/scheduler/`, `server/test/`, `shared/src/`, `cli/src/index.ts` на месте; тесты `server/test/sync.test.ts`, `events-validation.test.ts` на месте, команда `npm --prefix server test` (vitest run) доступна.
 Расхождение: plan.md:100 метит 8a.3 [x] (коммит `4e46df9` в логе есть), блокер 8a.3.0 при этом [ ]; submit.md:32-33 описывает 8a.3 как будущий [Pro]. Порядок инвертирован, на приём 8a.3.0 не влияет.
+
+## Приём 2026-09-18
+
+Роль: mid. Первый шаг: 8a.3.0 (plan.md:93).
+Сверено: `server/src/routes/sync.ts:4,42,53` валидация на месте (`syncEventSchema`/`syncTaskSchema`, `safeParse`, карантин поштучно); `server/src/routes/schemas.ts:158,181` схемы на месте; `shared/src/api.ts:57` контракт на месте; пути `server/src/db/`, `server/src/routes/`, `server/src/scheduler/`, `server/test/`, `shared/src/`, `cli/src/index.ts` на месте; тесты `server/test/sync.test.ts:158,191,228`, `events-validation.test.ts` на месте, команда `npm --prefix server test` (`vitest run`, `server/package.json:11`) доступна.
+Расхождение: шаг 8a.3.0 в `plan.md:93` помечен [ ], код уже реализует его коммитом `e92bedb` (после `0eca6d2` из submit.md:82): тест `sync.test.ts:182-183` проверяет БД и отсутствие строки в `delivery_log`. Контракт отличается от `plan.md:98`: вместо `rejected: number` код даёт `rejectedTasks`/`rejectedEvents` (`shared/src/api.ts:64-65`). Шаг выглядит сделанным, нужна приёмка, не реализация.
